@@ -149,7 +149,7 @@ local function project(v, n)
 	return v - n * v:dot(n) / n:dot(n)
 end
 
-function Board:showMoves(place)
+function Board:showMoves(place, canmove)
 	place:drawHighlight(0,1,0)
 
 	local already = {}
@@ -164,7 +164,7 @@ function Board:showMoves(place)
 		for _,n in ipairs(p.neighbors) do
 			local dir = project(p.center - p2.center, p.normal):normalize()
 			local dir2 = project(n.center - p.center, p.normal):normalize()
-			if dir:dot(dir2) > .1 then
+			if canmove(dir, dir2) then
 				iterate(n, p)
 			end
 		end
@@ -253,7 +253,9 @@ function App:update()
 	self.board:draw()
 
 	if self.selectedPlace then
-		self.board:showMoves(self.selectedPlace)
+		self.board:showMoves(self.selectedPlace, function(dir, dir2)
+			return dir:dot(dir2) > .1
+		end)
 	end
 
 	-- this does the gui drawing *and* does the gl matrix setup
