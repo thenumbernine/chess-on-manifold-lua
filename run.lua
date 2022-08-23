@@ -1,10 +1,12 @@
 #! /usr/bin/env luajit
 local gl = require 'gl'
 local table = require 'ext.table'
+local class = require 'ext.class'
+local math = require 'ext.math'
 local App = require 'glapp.orbit'(require 'imguiapp')
 local vec3f = require 'vec-ffi.vec3f'
 local vec4ub = require 'vec-ffi.vec4ub'
-local class = require 'ext.class'
+local quatf = require 'vec-ffi.quatf'
 
 
 local Place = class()
@@ -31,7 +33,14 @@ function Place:init(args)
 	center = center * (1/n)
 	self.center = center
 
-	-- fill out later
+	--[[ fill out later
+	self.neighbors = {
+		{
+			place = neighborPlace,
+			opposites = { ... },
+		},
+	}
+	--]]
 	self.neighbors = table()
 end
 
@@ -95,23 +104,35 @@ function Board:init()
 		or (vertexMatches(a1,b2) and vertexMatches(a2,b1))
 	end
 
-	for a=1,#self.places-1 do
-		local pa = self.places[a]
-		for b=a+1,#self.places do
-			local pb = self.places[b]
-			for i=1,#pa.vtxs do
+	for a,pa in ipairs(self.places) do
+		for i=1,#pa.vtxs do
+			local i2 = i % #pa.vtxs + 1
+
+			local o = (i+2 - 1) % #pa.vtxs + 1
+			local o2 = o % #pa.vtxs + 1
+
+			local neighbor
+			local opposites
+			for b,pb in ipairs(self.places) do
 				for j=1,#pb.vtxs do
+					local j2 = j % #pb.vtxs+1
+					
 					if edgeMatches(
 						pa.vtxs[i],
-						pa.vtxs[i%#pa.vtxs+1],
+						pa.vtxs[i2],
 						pb.vtxs[j],
-						pb.vtxs[j%#pb.vtxs+1])
+						pb.vtxs[j2])
 					then
-						-- TODO do this per-direction
-						pa.neighbors:insert(pb)
-						pb.neighbors:insert(pa)
+						neighbor = pb
+						break
 					end
 				end
+			end
+			if neighbor then
+				pa.neighbors:insert{
+					place = neighbor,
+					opposites = {opposite},
+				}
 			end
 		end
 	end
@@ -149,29 +170,70 @@ local function project(v, n)
 	return v - n * v:dot(n) / n:dot(n)
 end
 
+local function quatFromVectors(a, b)
+	a = a:normalize()
+	b = b:normalize()
+	local axis = a:cross(b)
+	local axislen = axis:length()
+	local angle = math.deg(math.asin(math.clamp(axislen,-1,1)))
+	return axislen < 1e-7
+		and quatf(0,0,0,1) 
+		or quatf():fromAngleAxis(
+			axis.x, axis.y, axis.z,
+			angle
+		)
+end
+
 function Board:showMoves(place, canmove)
+do return end	-- TODO use neighbors[i].place and .opposites[]
 	place:drawHighlight(0,1,0)
 
 	local already = {}
 	already[place] = true
 
+	local function buildBasis(p, n)
+		local bs = {}
+		local proj = p.normal
+		bs[1] = project(n.center - p.center, proj):normalize()
+		bs[2] = vec3f(proj:unpack())
+		bs[3] = bs[1]:cross(bs[2]):normalize()
+		return bs
+	end
+
 	-- now traverse the manifold, stepping in each direction
 	-- neighbor info ... needs a direction ...
-	local function iterate(p, p2)
+	local function iterate(p, p2, step, obs)
 		if already[p] then return end
 		already[p] = true
 		p:drawHighlight(1,0,0)
-		for _,n in ipairs(p.neighbors) do
-			local dir = project(p.center - p2.center, p.normal):normalize()
-			local dir2 = project(n.center - p.center, p.normal):normalize()
-			if canmove(dir, dir2) then
-				iterate(n, p)
+
+		for _,info in ipairs(p.neighbors) do
+			local n = info.place
+			local cs = buildBasis(p, n)
+
+			-- now rotate 'b' into the current tangent basis ... based on the normals
+			-- [[
+			local q = quatFromVectors(p.normal, n.normal)
+			local bs = {
+				q:rotate(obs[1]),
+				q:rotate(obs[2]),
+				q:rotate(obs[3]),
+			}
+			--]]
+			--[[
+			local bs = {obs[1], obs[2], obs[3]}
+			--]]
+
+			if canmove(bs, cs, step) then
+				iterate(n, p, step+1, bs)
 			end
 		end
 	end
-	
+
 	for _,n in ipairs(place.neighbors) do
-		iterate(n, place)
+		-- make a basis between 'place' and neighbor 'n'
+		local bs = buildBasis(place, n)
+		iterate(n, place, 1, bs)
 	end
 end
 
@@ -229,8 +291,8 @@ end
 function App:initGL()
 	App.super.initGL(self)
 
-	--self.board = TraditionalBoard()
-	self.board = CubeBoard()
+	self.board = TraditionalBoard()
+	--self.board = CubeBoard()
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
@@ -253,9 +315,20 @@ function App:update()
 	self.board:draw()
 
 	if self.selectedPlace then
-		self.board:showMoves(self.selectedPlace, function(dir, dir2)
-			return dir:dot(dir2) > .1
+		-- [[ rook moves
+		self.board:showMoves(self.selectedPlace, function(bs, cs, step)
+			return bs[1]:dot(cs[1]) > .7
 		end)
+		--]]
+		--[[ bishop moves
+		self.board:showMoves(self.selectedPlace, function(bs, cs, step)
+			if step % 2 == 1 then
+				return bs[1]:dot(cs[1]) > .7
+			elseif step % 2 == 0 then
+				return bs[2]:dot(cs[1]) > .7
+			end
+		end)
+		--]]
 	end
 
 	-- this does the gui drawing *and* does the gl matrix setup
