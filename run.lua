@@ -3,11 +3,12 @@ local gl = require 'gl'
 local table = require 'ext.table'
 local class = require 'ext.class'
 local math = require 'ext.math'
-local App = require 'glapp.orbit'(require 'imguiapp')
 local vec3f = require 'vec-ffi.vec3f'
 local vec4ub = require 'vec-ffi.vec4ub'
 local quatf = require 'vec-ffi.quatf'
 
+local App = require 'imguiapp.withorbit'()
+App.title = 'Chess or something'
 
 local Place = class()
 
@@ -291,8 +292,8 @@ end
 function App:initGL()
 	App.super.initGL(self)
 
-	self.board = TraditionalBoard()
-	--self.board = CubeBoard()
+	--self.board = TraditionalBoard()
+	self.board = CubeBoard()
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
