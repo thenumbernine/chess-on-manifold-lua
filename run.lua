@@ -336,4 +336,4 @@ function App:update()
 	App.super.update(self)
 end
 
-App():run()
+return App():run()
