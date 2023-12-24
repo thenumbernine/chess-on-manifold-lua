@@ -226,7 +226,16 @@ function Board:init(app)
 				place = neighbor,
 			}
 		end
---print(pa.index, #pa.edges)
+io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
+		for i=1,#pa.edges do
+			local pb = pa.edges[i].place
+			local pc = pa.edges[(i % #pa.edges)+1].place
+			if pb and pc then
+				local n2 = (pb.center - pa.center):cross(pc.center - pb.center)
+				io.write('\t', n2:dot(pa.normal))
+			end
+		end
+print()	
 	end
 end
 
@@ -524,7 +533,7 @@ print(result:unpack(), self.selectedPlace.center)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
-		-- [[ rook moves
+		--[[ rook moves
 		local function rookStart(place)
 			local nedges = #place.edges
 			return coroutine.wrap(function()
@@ -546,14 +555,18 @@ print(result:unpack(), self.selectedPlace.center)
 		end
 		self.board:showMoves(self.selectedPlace, rookStart, rookStep)
 		--]]
-		--[[ bishop moves
+		-- [[ bishop moves
 		self.board:showMoves(self.selectedPlace, 
 			-- start
 			function(place)
 				return coroutine.wrap(function()
 					for i=0,#place.edges-1 do
 						for lr=-1,1,2 do	-- left vs right
-							coroutine.yield(false, i, lr)
+							coroutine.yield(
+								i,		-- neighbor
+								false,	-- mark? not for the first step
+								lr		-- state: left vs right
+							)
 						end
 					end
 				end)
@@ -562,7 +575,17 @@ print(result:unpack(), self.selectedPlace.center)
 			function(place, edgeindex, step, lr)
 				local nedges = #place.edges
 				return coroutine.wrap(function()
-					coroutine.yield(true, (edgeindex + math.floor(nedges/2) + lr) % nedges)
+					if step % 2 == 0 then
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2) - lr) % nedges,
+							false
+						)
+					else
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2) + lr) % nedges,
+							true
+						)
+					end
 				end)
 			end
 		)
