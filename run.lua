@@ -153,20 +153,212 @@ end
 local Pawn = Piece:subclass()
 Pawn.name = 'pawn'
 
+-- TODO ... which way is up?
+-- geodesic from king to king?  closest to the pawn?
+
+
 local Bishop = Piece:subclass()
+
 Bishop.name = 'bishop'
 
+function Bishop:showMoves()
+	self.player.app.board:showMoves(self.place, 
+		-- start
+		function(place)
+			return coroutine.wrap(function()
+				for i=0,#place.edges-1 do
+					for lr=-1,1,2 do	-- left vs right
+						coroutine.yield(
+							i,		-- neighbor
+							false,	-- mark? not for the first step
+							lr		-- state: left vs right
+						)
+					end
+				end
+			end)
+		end,
+		-- step
+		function(place, edgeindex, step, lr)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				if step % 2 == 0 then
+					coroutine.yield(
+						(edgeindex + math.floor(nedges/2) - lr) % nedges,
+						false
+					)
+				else
+					coroutine.yield(
+						(edgeindex + math.floor(nedges/2) + lr) % nedges,
+						true
+					)
+				end
+			end)
+		end
+	)
+end
+
+
 local Knight = Piece:subclass()
+
 Knight.name = 'knight'
 
+function Knight:showMoves()
+	self.player.app.board:showMoves(self.place, 
+		-- start
+		function(place)
+			return coroutine.wrap(function()
+				for i=0,#place.edges-1 do
+					for lr=-1,1,2 do	-- left vs right
+						coroutine.yield(
+							i,		-- neighbor
+							false,	-- mark? not for the first step
+							lr		-- state: left vs right
+						)
+					end
+				end
+			end)
+		end,
+		-- step
+		function(place, edgeindex, step, lr)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				if step < 2 then
+					coroutine.yield(
+						(edgeindex + math.floor(nedges/2)) % nedges,
+						false
+					)
+				elseif step == 2 then
+					coroutine.yield(
+						(edgeindex + math.floor(nedges/2) + lr) % nedges,
+						true
+					)
+				end
+			end)
+		end
+	)
+end
+
+
 local Rook = Piece:subclass()
+
 Rook.name = 'rook'
 
+function Rook:showMoves()
+	self.player.app.board:showMoves(
+		self.place,
+		-- start
+		function(place)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				for i=0,nedges-1 do
+					coroutine.yield(i)
+				end
+			end)
+		end,
+		-- step
+		function(place, edgeindex, step)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
+					coroutine.yield(
+						(edgeindex + ofs) % nedges
+						--, step % 2 == 0	-- ex: rook that must change color
+					)
+				end
+			end)
+		end
+	)
+end
+
 local Queen = Piece:subclass()
+
 Queen.name = 'queen'
 
+function Queen:showMoves()
+	self.player.app.board:showMoves(self.place, 
+		-- start
+		function(place)
+			return coroutine.wrap(function()
+				for i=0,#place.edges-1 do
+					for lr=-1,1 do	-- left, center, right
+						coroutine.yield(
+							i,		-- neighbor
+							lr == 0,	-- mark? not for the first bishop step
+							lr		-- state: left vs right
+						)
+					end
+				end
+			end)
+		end,
+		-- step
+		function(place, edgeindex, step, lr)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				if lr == 0 then	-- rook move
+					for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
+						coroutine.yield((edgeindex + ofs) % nedges)
+					end
+				else	-- bishop move
+					if step % 2 == 0 then
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2) - lr) % nedges,
+							false
+						)
+					else
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2) + lr) % nedges,
+							true
+						)
+					end
+				end
+			end)
+		end
+	)
+end
+
+
 local King = Piece:subclass()
+
 King.name = 'king'
+
+function King:showMoves()
+	self.player.app.board:showMoves(self.place, 
+		-- start
+		function(place)
+			return coroutine.wrap(function()
+				for i=0,#place.edges-1 do
+					for lr=-1,1 do	-- left, center, right
+						coroutine.yield(
+							i,		-- neighbor
+							lr == 0,	-- mark? not for the first step
+							lr		-- state: left vs right
+						)
+					end
+				end
+			end)
+		end,
+		-- step
+		function(place, edgeindex, step, lr)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				if lr ~= 0 then	-- bishop move
+					if step == 0 then
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2) - lr) % nedges,
+							false
+						)
+					elseif step == 1 then
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2) + lr) % nedges,
+							true
+						)
+					end
+				end
+			end)
+		end
+	)
+end
+
 
 
 local Player = class()
@@ -232,7 +424,9 @@ io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
 			local pc = pa.edges[(i % #pa.edges)+1].place
 			if pb and pc then
 				local n2 = (pb.center - pa.center):cross(pc.center - pb.center)
-				io.write('\t', n2:dot(pa.normal))
+				-- should be positive ...
+				local dot = n2:dot(pa.normal)
+				io.write('\t', dot)
 			end
 		end
 print()	
@@ -285,11 +479,8 @@ function Board:showMoves(place, startmove, nextmove)
 	assert(Place:isa(place))
 	place:drawHighlight(0,1,0)
 
-	local already = {}
-	already[place] = true
-
 	-- now traverse the manifold, stepping in each direction
-	local function iterate(draw, p, srcp, step, state)
+	local function iterate(draw, p, srcp, step, already, state)
 		assert(Place:isa(p))
 		assert(Place:isa(srcp))
 		if already[p] then return end
@@ -324,11 +515,11 @@ end
 			-- now pick the piece
 			local n = p.edges[j+1]
 			if n and n.place then
-				iterate(draw, n.place, p, step+1, state)
+				iterate(draw, n.place, p, step+1, already, state)
 			end
 		end
 	end
-
+	
 	-- yields:
 	-- 1st: neighborhood index (0-based)
 	-- 2nd: mark or not
@@ -337,7 +528,9 @@ end
 		local n = place.edges[j+1]
 		if n and n.place then
 			-- make a basis between 'place' and neighbor 'n'
-			iterate(draw, n.place, place, 1, state)
+			local already = {}
+			already[place] = true
+			iterate(draw, n.place, place, 1, already, state)
 		end
 	end
 end
@@ -533,63 +726,12 @@ print(result:unpack(), self.selectedPlace.center)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
-		--[[ rook moves
-		local function rookStart(place)
-			local nedges = #place.edges
-			return coroutine.wrap(function()
-				for i=0,nedges-1 do
-					coroutine.yield(i)
-				end
-			end)
+		local piece = self.selectedPlace.piece
+		if piece 
+		and piece.showMoves
+		then
+			piece:showMoves()
 		end
-		local function rookStep(place, edgeindex, step)
-			local nedges = #place.edges
-			return coroutine.wrap(function()
-				for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
-					coroutine.yield(
-						(edgeindex + ofs) % nedges
-						--, step % 2 == 0	-- ex: rook that must change color
-					)
-				end
-			end)
-		end
-		self.board:showMoves(self.selectedPlace, rookStart, rookStep)
-		--]]
-		-- [[ bishop moves
-		self.board:showMoves(self.selectedPlace, 
-			-- start
-			function(place)
-				return coroutine.wrap(function()
-					for i=0,#place.edges-1 do
-						for lr=-1,1,2 do	-- left vs right
-							coroutine.yield(
-								i,		-- neighbor
-								false,	-- mark? not for the first step
-								lr		-- state: left vs right
-							)
-						end
-					end
-				end)
-			end,
-			-- step
-			function(place, edgeindex, step, lr)
-				local nedges = #place.edges
-				return coroutine.wrap(function()
-					if step % 2 == 0 then
-						coroutine.yield(
-							(edgeindex + math.floor(nedges/2) - lr) % nedges,
-							false
-						)
-					else
-						coroutine.yield(
-							(edgeindex + math.floor(nedges/2) + lr) % nedges,
-							true
-						)
-					end
-				end)
-			end
-		)
-		--]]
 	end
 
 	-- this does the gui drawing *and* does the gl matrix setup
