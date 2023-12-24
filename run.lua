@@ -279,24 +279,9 @@ function Board:showMoves(place, canmove)
 	local already = {}
 	already[place] = true
 
-	local function buildBasis(p, n)
-		assert(p)
-		assert(Place:isa(p))
-		assert(n)
-		assert(Place:isa(n))
-		local bs = {}
-		local proj = assert(p.normal)
-		assert(n.center)
-		assert(p.center)
-		bs[1] = proj:project(n.center - p.center):normalize()
-		bs[2] = vec3f(proj:unpack())
-		bs[3] = bs[1]:cross(bs[2]):normalize()
-		return bs
-	end
-
 	-- now traverse the manifold, stepping in each direction
 	-- neighbor info ... needs a direction ...
-	local function iterate(p, srcp, step, obs)
+	local function iterate(p, srcp, step)
 		assert(Place:isa(p))
 		assert(Place:isa(srcp))
 		if already[p] then return end
@@ -320,20 +305,22 @@ end
 
 		-- now each piece should pick the next neighbor based on the prev neighbor and the neighborhood ...
 		-- cycle  around thema nd see if the piece should move in that direction
-		for j in canmove(p, i, step) do
+		-- ...
+		-- hmm, for modulo math's sake, 0-based indexes would be very nice here ...
+		for j in canmove(p, i-1, step) do
 			-- now pick the piece
-			local n = p.edges[j].place
-			if n then
-				iterate(n, p, step+1)
+			local n = p.edges[j+1]
+			if n and n.place then
+				iterate(n.place, p, step+1)
 			end
 		end
 	end
 
-	for _,n in ipairs(place.edges) do
-		if n.place then
+	for j in canmove(place, nil, 0) do
+		local n = place.edges[j+1]
+		if n and n.place then
 			-- make a basis between 'place' and neighbor 'n'
-			local bs = buildBasis(place, n.place)
-			iterate(n.place, place, 1, bs)
+			iterate(n.place, place, 1)
 		end
 	end
 end
@@ -452,16 +439,17 @@ function App:initGL()
 	-- textures:
 	local piecesImg = Image'pieces.png'
 	print(piecesImg.width, piecesImg.height)
-	assert(piecesImg.width == 256*6)
-	assert(piecesImg.height == 256*2)
+	local texsize = piecesImg.height/2
+	assert(piecesImg.width == texsize*6)
+	assert(piecesImg.height == texsize*2)
 	assert(piecesImg.channels == 4)
 	for y=0,piecesImg.height-1 do
 		for x=0,piecesImg.width-1 do
 			local i = 4 * (x + piecesImg.width * y)
 			if piecesImg.buffer[3 + i] < 127 then
 				piecesImg.buffer[0 + i] = 0
-				piecesImg.buffer[1 + i] = 0xff
-				piecesImg.buffer[2 + i] = 0xff
+				piecesImg.buffer[1 + i] = 0
+				piecesImg.buffer[2 + i] = 0
 			end
 		end
 	end
@@ -480,10 +468,10 @@ function App:initGL()
 			'pawn',
 		} do
 			local image = piecesImg:copy{
-				x = 256*(x-1),
-				y = 256*(y-1),
-				width = 256,
-				height = 256,
+				x = texsize*(x-1),
+				y = texsize*(y-1),
+				width = texsize,
+				height = texsize,
 			}
 			local tex = GLTex2D{
 				image = image,
@@ -498,8 +486,8 @@ function App:initGL()
 
 	-- per-game
 	self.players = table()
-	--self.board = TraditionalBoard(self)
-	self.board = CubeBoard(self)
+	self.board = TraditionalBoard(self)
+	--self.board = CubeBoard(self)
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
@@ -528,25 +516,39 @@ print(result:unpack(), self.selectedPlace.center)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
-		-- [[ rook moves
-		self.board:showMoves(self.selectedPlace, function(place, startedgeindex, step)
-			local nextindex = startedgeindex
-			nextindex = nextindex - 1
-			-- TODO handle 5-sided, iterate on 3 and 4, not just 3 ...
-			nextindex = nextindex + math.floor(#place.edges/2)
-			nextindex = nextindex % #place.edges
-			nextindex = nextindex + 1
+		local function cardinalMove(place, edgeindex, step)
+			local nedges = #place.edges
 			return coroutine.wrap(function()
-				coroutine.yield(nextindex)
+				-- rook init? cycle all
+				if step == 0 then
+					for i=0,nedges-1 do
+						coroutine.yield(i)
+					end
+				else
+					for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
+						coroutine.yield((edgeindex + ofs) % nedges)
+					end
+				end
 			end)
-		end)
+		end
+		-- [[ rook moves
+		self.board:showMoves(self.selectedPlace, cardinalMove)
 		--]]
 		--[[ bishop moves
-		self.board:showMoves(self.selectedPlace, function(bs, cs, step)
-			if step % 2 == 1 then
-				return bs[1]:dot(cs[1]) > .7
-			elseif step % 2 == 0 then
-				return bs[2]:dot(cs[1]) > .7
+		self.board:showMoves(self.selectedPlace, function(place, edgeindex, step)
+			local nedges = #place.edges
+			if step % 2 == 0 then
+				--return cardinalMove(place, edgeindex, step)
+				return coroutine.wrap(function()
+					coroutine.yield((edgeindex + 2) % nedges)
+				end)
+			elseif step % 2 == 1 then
+				return coroutine.wrap(function()
+					coroutine.yield((edgeindex + 3) % nedges)
+					--coroutine.yield((edgeindex + 3) % nedges)
+					--coroutine.yield((edgeindex + 1) % nedges)
+					--coroutine.yield((edgeindex + 1 + math.floor(nedges/2)) % nedges)
+				end)
 			end
 		end)
 		--]]
