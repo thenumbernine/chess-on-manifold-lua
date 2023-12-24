@@ -151,10 +151,39 @@ end
 
 
 local Pawn = Piece:subclass()
+
 Pawn.name = 'pawn'
 
--- TODO ... which way is up?
+function Pawn:init(...)
+	Pawn.super.init(self, ...)
+
+	-- pick an initial dir ...
+	self.dir = self.player.index * 2 
+end
+
+-- TODO ... pawns ... which way is up?
 -- geodesic from king to king?  closest to the pawn?
+-- this also means  store state info for when the piece is created ... this is only true for pawns
+function Pawn:showMoves()
+	self.player.app.board:showMoves(self.place,
+		--start
+		function(place)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				coroutine.yield((self.dir) % nedges)
+			end)
+		end,
+		--step
+		function(place, edgeindex, step)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				-- if this is our starting square then ...
+				if step > 1 then return end
+				coroutine.yield((edgeindex + math.floor(nedges/2)) % nedges)
+			end)
+		end
+	)
+end
 
 
 local Bishop = Piece:subclass()
