@@ -6,6 +6,8 @@ local math = require 'ext.math'
 local vec3f = require 'vec-ffi.vec3f'
 local vec4ub = require 'vec-ffi.vec4ub'
 local quatf = require 'vec-ffi.quatf'
+local Image = require 'image'
+local GLTex2D = require 'gl.tex2d'
 
 local App = require 'imguiapp.withorbit'()
 App.title = 'Chess or something'
@@ -13,6 +15,10 @@ App.title = 'Chess or something'
 local Place = class()
 
 function Place:init(args)
+	self.board = assert(args.board)
+	self.board.places:insert(self)
+	self.index = #self.board.places
+	
 	self.color = args.color
 	self.vtxs = args.vtxs
 	
@@ -73,6 +79,10 @@ function Place:drawPicking()
 	-- assume color is already set
 	-- and don't bother draw the outline
 	self:drawPolygon()
+
+	if self.piece then
+		self.piece:draw()
+	end
 end
 
 function Place:drawHighlight(r,g,b,a)
@@ -87,9 +97,69 @@ function Place:drawHighlight(r,g,b,a)
 end
 
 
+local Piece = class()
+
+function Piece:init(args)
+	self.player = assert(args.player)
+	self.place = assert(args.place)
+	if self.place.piece then
+		error("tried to place a "..self.name.." at place #"..self.place.index.." but instead already found a "..self.place.piece.name.." there")
+	end
+	self.place.piece = self
+end
+
+local uvs = table{
+	vec3f(-1,-1,0),
+	vec3f(-1,1,0),
+	vec3f(1,1,0),
+	vec3f(1,-1,0),
+}
+function Piece:draw()
+	local player = self.player
+	local tex = player.app.pieceTexs[player.index][self.name]
+	tex:bind()
+	gl.glBegin(gl.GL_QUADS)
+	for _,uv in ipairs(uvs) do
+		gl.glTexCoord3f(uv:unpack())
+		gl.glVertex3f((self.place.center + uv):unpack())
+	end
+	gl.glEnd()
+	tex:unbind()
+end
+
+
+local Pawn = Piece:subclass()
+Pawn.name = 'pawn'
+
+local Bishop = Piece:subclass()
+Bishop.name = 'bishop'
+
+local Knight = Piece:subclass()
+Knight.name = 'knight'
+
+local Rook = Piece:subclass()
+Rook.name = 'rook'
+
+local Queen = Piece:subclass()
+Queen.name = 'queen'
+
+local King = Piece:subclass()
+King.name = 'king'
+
+
+local Player = class()
+
+function Player:init(app)
+	self.app = assert(app)
+	app.players:insert(self)
+	self.index = #app.players
+end
+
+
 local Board = class()
 
-function Board:init()
+function Board:init(app)
+	self.app = app
 	self.places = table()
 	
 	self:makePlaces()
@@ -239,12 +309,13 @@ do return end	-- TODO use neighbors[i].place and .opposites[]
 end
 
 
-local TraditionalBoard = class(Board)
+local TraditionalBoard = Board:subclass()
 
 function TraditionalBoard:makePlaces()
 	for j=0,7 do
 		for i=0,7 do
-			self.places:insert(Place{
+			Place{
+				board = self,
 				color = (i+j)%2 == 0 and vec3f(1,1,1) or vec3f(.2, .2, .2),
 				vtxs={
 					vec3f(i-4, j-4, 0),
@@ -252,7 +323,27 @@ function TraditionalBoard:makePlaces()
 					vec3f(i-3, j-3, 0),
 					vec3f(i-4, j-3, 0),
 				},
-			})
+			}
+		end
+	end
+
+	-- board makes players?  or app makes players?  hmm
+	-- board holds players?
+	assert(#self.app.players == 0)
+	for playerindex=1,2 do
+		local player = Player(self.app)
+		local y = (7 * (playerindex-1))
+		Rook{player=player, place=self.places[1 + 0 + 8 * y]}
+		Knight{player=player, place=self.places[1 + 1 + 8 * y]}
+		Bishop{player=player, place=self.places[1 + 2 + 8 * y]}
+		Queen{player=player, place=self.places[1 + 3 + 8 * y]}
+		King{player=player, place=self.places[1 + 4 + 8 * y]}
+		Bishop{player=player, place=self.places[1 + 5 + 8 * y]}
+		Knight{player=player, place=self.places[1 + 6 + 8 * y]}
+		Rook{player=player, place=self.places[1 + 7 + 8 * y]}
+		local y = 5 * (playerindex-1) + 1
+		for x=0,7 do
+			Pawn{player=player, place=self.places[1 + x + 8 * y]}
 		end
 	end
 end
@@ -274,7 +365,8 @@ function CubeBoard:makePlaces()
 			end
 			for j=0,3 do
 				for i=0,3 do
-					self.places:insert(Place{
+					Place{
+						board = self,
 						color = (i+j+a)%2 == 0 and vec3f(1,1,1) or vec3f(.2, .2, .2),
 						vtxs = {
 							vtx(i-2, j-2),
@@ -282,7 +374,7 @@ function CubeBoard:makePlaces()
 							vtx(i-1, j-1),
 							vtx(i-2, j-1),
 						},
-					})
+					}
 				end
 			end
 		end
@@ -292,8 +384,48 @@ end
 function App:initGL()
 	App.super.initGL(self)
 
-	--self.board = TraditionalBoard()
-	self.board = CubeBoard()
+	-- pieceTexs[color][piece]
+	self.pieceTexs = {}
+
+	-- textures:
+	local piecesImg = Image'pieces.png'
+	print(piecesImg.width, piecesImg.height)
+	assert(piecesImg.width == 256*6)
+	assert(piecesImg.height == 256*2)
+	for y,color in ipairs{
+		'white',
+		'black',
+	} do
+		self.pieceTexs[color] = {}
+		self.pieceTexs[y] = self.pieceTexs[color]
+		for x,piece in ipairs{
+			'king',
+			'queen',
+			'bishop',
+			'knight',
+			'rook',
+			'pawn',
+		} do
+			local pieceImg = piecesImg:copy{
+				x = 256*x,
+				y = 256*y,
+				width = 256,
+				height = 256,
+			}
+			local tex = GLTex2D{
+				image = pieceImg,
+				minFilter = gl.GL_NEAREST,
+				magFilter = gl.GL_LINEAR,
+			}
+			tex.image = image
+			self.pieceTexs[color][piece] = tex
+		end
+	end
+
+	-- per-game
+	self.players = table()
+	self.board = TraditionalBoard(self)
+	--self.board = CubeBoard()
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
@@ -308,7 +440,11 @@ function App:update()
 	j = self.height - j - 1
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
+	
 		self.selectedPlace = self.board:getPlaceForRGB(result:unpack())
+		if self.mouse.leftClick then
+			print(result:unpack(), self.selectedPlace.center)
+		end
 	end
 
 	-- draw
