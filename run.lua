@@ -150,15 +150,47 @@ function Piece:draw()
 end
 
 
+local King
 local Pawn = Piece:subclass()
 
 Pawn.name = 'pawn'
 
-function Pawn:init(...)
-	Pawn.super.init(self, ...)
+-- run this when we're done placing pieces
+function Pawn:initAfterPlacing()
+	-- initial dir should be the edge whose 'ey' basis vector closest aligns with the vector between kings
+	local thisKings = self.player.app.board.places:filter(function(place)
+		return place.piece
+		and King:isa(place.piece)
+		and place.piece.player == self.player
+	end):mapi(function(place)
+		return place.center
+	end)
+	local thisKingPos = thisKings:sum() / #thisKings
 
-	-- pick an initial dir ...
-	self.dir = self.player.index * 2 
+	local otherKings = self.player.app.board.places:filter(function(place)
+		return place.piece
+		and King:isa(place.piece)
+		and place.piece.player ~= self.player
+	end):mapi(function(place)
+		return place.center
+	end)
+	local otherKingPos = otherKings:sum() / #otherKings
+
+	local dirToOtherKing = (otherKingPos - thisKingPos):normalize()
+print('dirToOtherKing', dirToOtherKing)
+	self.dir = select(2, self.place.edges:mapi(function(edge)
+		--[[ use edge basis ...
+		-- ... but what if the edge basis is in the perpendicular plane?
+		return (edge.ey:dot(dirToOtherKing))
+		--]]
+		-- [[ use line to neighboring tile
+		if not edge.place then return -math.huge end
+		return (edge.place.center - self.place.center):normalize():dot(dirToOtherKing)
+		--]]
+	end):sup())
+	assert(self.dir)
+	local edge = self.place.edges[self.dir]
+print('dir', edge.ex, edge.ey)
 end
 
 -- TODO ... pawns ... which way is up?
@@ -170,7 +202,7 @@ function Pawn:showMoves()
 		function(place)
 			local nedges = #place.edges
 			return coroutine.wrap(function()
-				coroutine.yield((self.dir) % nedges)
+				coroutine.yield((self.dir-1) % nedges)
 			end)
 		end,
 		--step
@@ -346,7 +378,7 @@ function Queen:showMoves()
 end
 
 
-local King = Piece:subclass()
+King = Piece:subclass()
 
 King.name = 'king'
 
@@ -404,9 +436,9 @@ local Board = class()
 function Board:init(app)
 	self.app = assert(app)
 	self.places = table()
-	
-	self:makePlaces()
+end
 
+function Board:buildEdges()
 	local epsilon = 1e-7
 
 	local function vertexMatches(a,b)
@@ -443,9 +475,13 @@ function Board:init(app)
 					end
 				end
 			end
-			pa.edges:insert{
+			local edge = {
 				place = neighbor,
 			}
+			edge.ex = (pa.vtxs[i] - pa.vtxs[i2]):normalize()
+			-- edge.ez = pa.normal
+			edge.ey = pa.normal:cross(edge.ex):normalize()
+			pa.edges:insert(edge)
 		end
 io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
 		for i=1,#pa.edges do
@@ -583,23 +619,25 @@ function TraditionalBoard:makePlaces()
 		end
 	end
 
-	-- board makes players?  or app makes players?  hmm
-	-- board holds players?
-	assert(#self.app.players == 0)
-	for i=1,2 do
-		local player = Player(self.app)
-		local y = 7 * (i-1)
-		Rook{player=player, place=self.places[1 + 0 + 8 * y]}
-		Knight{player=player, place=self.places[1 + 1 + 8 * y]}
-		Bishop{player=player, place=self.places[1 + 2 + 8 * y]}
-		Queen{player=player, place=self.places[1 + 3 + 8 * y]}
-		King{player=player, place=self.places[1 + 4 + 8 * y]}
-		Bishop{player=player, place=self.places[1 + 5 + 8 * y]}
-		Knight{player=player, place=self.places[1 + 6 + 8 * y]}
-		Rook{player=player, place=self.places[1 + 7 + 8 * y]}
-		local y = 5 * (i-1) + 1
-		for x=0,7 do
-			Pawn{player=player, place=self.places[1 + x + 8 * y]}
+	self.makePieces = function()
+		-- board makes players?  or app makes players?  hmm
+		-- board holds players?
+		assert(#self.app.players == 0)
+		for i=1,2 do
+			local player = Player(self.app)
+			local y = 7 * (i-1)
+			Rook{player=player, place=self.places[1 + 0 + 8 * y]}
+			Knight{player=player, place=self.places[1 + 1 + 8 * y]}
+			Bishop{player=player, place=self.places[1 + 2 + 8 * y]}
+			Queen{player=player, place=self.places[1 + 3 + 8 * y]}
+			King{player=player, place=self.places[1 + 4 + 8 * y]}
+			Bishop{player=player, place=self.places[1 + 5 + 8 * y]}
+			Knight{player=player, place=self.places[1 + 6 + 8 * y]}
+			Rook{player=player, place=self.places[1 + 7 + 8 * y]}
+			local y = 5 * (i-1) + 1
+			for x=0,7 do
+				Pawn{player=player, place=self.places[1 + x + 8 * y]}
+			end
 		end
 	end
 end
@@ -642,30 +680,32 @@ function CubeBoard:makePlaces()
 			end
 		end
 	end
-	for i=1,2 do
-		local player = Player(self.app)
-		assert(player.index == i)
-		local places = placesPerSide[0][2*i-3]
-		
-		Pawn{player=player, place=places[0][0]}
-		Pawn{player=player, place=places[1][0]}
-		Pawn{player=player, place=places[2][0]}
-		Pawn{player=player, place=places[3][0]}
+	self.makePieces = function()
+		for i=1,2 do
+			local player = Player(self.app)
+			assert(player.index == i)
+			local places = placesPerSide[0][2*i-3]
+			
+			Pawn{player=player, place=places[0][0]}
+			Pawn{player=player, place=places[1][0]}
+			Pawn{player=player, place=places[2][0]}
+			Pawn{player=player, place=places[3][0]}
 
-		Bishop{player=player, place=places[0][1]}
-		Rook{player=player, place=places[1][1]}
-		Queen{player=player, place=places[2][1]}
-		Knight{player=player, place=places[3][1]}
-		
-		Knight{player=player, place=places[0][2]}
-		King{player=player, place=places[1][2]}
-		Rook{player=player, place=places[2][2]}
-		Bishop{player=player, place=places[3][2]}
-		
-		Pawn{player=player, place=places[0][3]}
-		Pawn{player=player, place=places[1][3]}
-		Pawn{player=player, place=places[2][3]}
-		Pawn{player=player, place=places[3][3]}
+			Bishop{player=player, place=places[0][1]}
+			Rook{player=player, place=places[1][1]}
+			Queen{player=player, place=places[2][1]}
+			Knight{player=player, place=places[3][1]}
+			
+			Knight{player=player, place=places[0][2]}
+			King{player=player, place=places[1][2]}
+			Rook{player=player, place=places[2][2]}
+			Bishop{player=player, place=places[3][2]}
+			
+			Pawn{player=player, place=places[0][3]}
+			Pawn{player=player, place=places[1][3]}
+			Pawn{player=player, place=places[2][3]}
+			Pawn{player=player, place=places[3][3]}
+		end
 	end
 end
 
@@ -727,6 +767,18 @@ function App:initGL()
 	self.players = table()
 	self.board = TraditionalBoard(self)
 	--self.board = CubeBoard(self)
+	self.board:makePlaces()
+	self.board:buildEdges()
+	self.board:makePieces()
+	-- run this after placing all pieces
+	for _,place in ipairs(self.board.places) do
+		local piece = place.piece
+		if piece 
+		and piece.initAfterPlacing
+		then
+			piece:initAfterPlacing()
+		end
+	end
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
