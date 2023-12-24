@@ -41,14 +41,13 @@ function Place:init(args)
 	self.center = center
 
 	--[[ fill out later
-	self.neighbors = {
+	self.edges = {
 		{
 			place = neighborPlace,
-			opposites = { ... },
 		},
 	}
 	--]]
-	self.neighbors = table()
+	self.edges = table()
 end
 
 function Place:drawLine()
@@ -72,8 +71,6 @@ function Place:draw()
 	self:drawLine()
 
 	if self == self.board.app.mouseOverPlace then
-		gl.glColor3f(1,0,0)
-	elseif self == self.board.app.selectedPlace then
 		gl.glColor3f(0,0,1)
 	else
 		gl.glColor3f(self.color:unpack())
@@ -208,30 +205,28 @@ function Board:init(app)
 			local o2 = o % #pa.vtxs + 1
 
 			local neighbor
-			local opposites
 			for b,pb in ipairs(self.places) do
-				for j=1,#pb.vtxs do
-					local j2 = j % #pb.vtxs+1
-					
-					if edgeMatches(
-						pa.vtxs[i],
-						pa.vtxs[i2],
-						pb.vtxs[j],
-						pb.vtxs[j2])
-					then
-						neighbor = pb
-						break
+				if pb ~= pa then
+					for j=1,#pb.vtxs do
+						local j2 = j % #pb.vtxs+1
+						
+						if edgeMatches(
+							pa.vtxs[i],
+							pa.vtxs[i2],
+							pb.vtxs[j],
+							pb.vtxs[j2])
+						then
+							neighbor = pb
+							break
+						end
 					end
 				end
 			end
-			if neighbor then
-				pa.neighbors:insert{
-					place = neighbor,
-					opposites = {opposite},
-				}
-			end
+			pa.edges:insert{
+				place = neighbor,
+			}
 		end
---print(pa.index, #pa.neighbors)
+print(pa.index, #pa.edges)
 	end
 end
 
@@ -279,7 +274,6 @@ end
 
 function Board:showMoves(place, canmove)
 	assert(Place:isa(place))
---do return end	-- TODO use neighbors[i].place and .opposites[]
 	place:drawHighlight(0,1,0)
 
 	local already = {}
@@ -302,14 +296,45 @@ function Board:showMoves(place, canmove)
 
 	-- now traverse the manifold, stepping in each direction
 	-- neighbor info ... needs a direction ...
-	local function iterate(p, p2, step, obs)
+	local function iterate(p, srcp, step, obs)
 		assert(Place:isa(p))
-		assert(Place:isa(p2))
+		assert(Place:isa(srcp))
 		if already[p] then return end
 		already[p] = true
 		p:drawHighlight(1,0,0)
 
-		for _,info in ipairs(p.neighbors) do
+		-- [=[ using edges instead of projective basis
+		-- find 'p's neighborhood entry that points back to 'srcp'
+		local i,nbhd = p.edges:find(nil, function(nbhd)
+			return nbhd.place == srcp
+		end)
+if not nbhd then
+	print("came from", srcp.center)
+	print("at", p.center)
+	print("with edges")
+	for _,n in ipairs(p.edges) do
+		print('', n.place.center)
+	end
+end
+		assert(nbhd)
+
+		-- now cycle half 
+		i = i - 1
+		i = i + math.floor(#p.edges/2)
+		i = i % #p.edges
+		i = i + 1
+
+		-- now pick the piece
+		local n = p.edges[i].place
+		if n then
+			iterate(n, p, step+1)
+		end
+
+		--]=]
+		--[=[ using basis ...
+		-- .. this has problems cuz I don't yet distinguish moving from an x axis to a y axis ...
+
+		for _,info in ipairs(p.edges) do
 			local n = assert(info.place)
 			assert(Place:isa(n))
 			local cs = buildBasis(p, n)
@@ -331,12 +356,15 @@ function Board:showMoves(place, canmove)
 				iterate(n, p, step+1, bs)
 			end
 		end
+		--]=]
 	end
 
-	for _,n in ipairs(place.neighbors) do
-		-- make a basis between 'place' and neighbor 'n'
-		local bs = buildBasis(place, n.place)
-		iterate(n.place, place, 1, bs)
+	for _,n in ipairs(place.edges) do
+		if n.place then
+			-- make a basis between 'place' and neighbor 'n'
+			local bs = buildBasis(place, n.place)
+			iterate(n.place, place, 1, bs)
+		end
 	end
 end
 
@@ -532,7 +560,7 @@ print(result:unpack(), self.selectedPlace.center)
 	if self.selectedPlace then
 		-- [[ rook moves
 		self.board:showMoves(self.selectedPlace, function(bs, cs, step)
-			return bs[1]:dot(cs[1]) > .7
+			return math.abs(bs[1]:dot(cs[1])) > .7
 		end)
 		--]]
 		--[[ bishop moves
