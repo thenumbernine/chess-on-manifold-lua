@@ -103,7 +103,7 @@ function Piece:init(args)
 	self.player = assert(args.player)
 	self.place = assert(args.place)
 	if self.place.piece then
-		error("tried to place a "..self.name.." at place #"..self.place.index.." but instead already found a "..self.place.piece.name.." there")
+		error("tried to place a "..self.name.." of team "..self.player.index.." at place #"..self.place.index.." but instead already found a "..self.place.piece.name.." of team "..self.place.piece.player.index.." there")
 	end
 	self.place.piece = self
 end
@@ -178,7 +178,7 @@ end
 local Board = class()
 
 function Board:init(app)
-	self.app = app
+	self.app = assert(app)
 	self.places = table()
 	
 	self:makePlaces()
@@ -368,13 +368,16 @@ function TraditionalBoard:makePlaces()
 end
 
 
-local CubeBoard = class(Board)
+local CubeBoard = Board:subclass()
 
 function CubeBoard:makePlaces()
+	local placesPerSide = {}
 	for a=0,2 do
+		placesPerSide[a] = {}
 		local b = (a+1)%3
 		local c = (b+1)%3
 		for pm=-1,1,2 do
+			placesPerSide[a][pm] = {}
 			local function vtx(i,j)
 				local v = vec3f()
 				v.s[a] = i
@@ -383,20 +386,49 @@ function CubeBoard:makePlaces()
 				return v
 			end
 			for j=0,3 do
+				placesPerSide[a][pm][j] = {}
 				for i=0,3 do
-					Place{
+					local vtxs = table{
+						vtx(i-2, j-2),
+						vtx(i-1, j-2),
+						vtx(i-1, j-1),
+						vtx(i-2, j-1),
+					}
+					if pm == -1 then vtxs = vtxs:reverse() end
+					local place = Place{
 						board = self,
 						color = (i+j+a)%2 == 0 and vec3f(1,1,1) or vec3f(.2, .2, .2),
-						vtxs = {
-							vtx(i-2, j-2),
-							vtx(i-1, j-2),
-							vtx(i-1, j-1),
-							vtx(i-2, j-1),
-						},
+						vtxs = vtxs,
 					}
+					placesPerSide[a][pm][j][i] = place
 				end
 			end
 		end
+	end
+	for i=1,2 do
+		local player = Player(self.app)
+		assert(player.index == i)
+		local places = placesPerSide[0][2*i-3]
+		
+		Pawn{player=player, place=places[0][0]}
+		Pawn{player=player, place=places[1][0]}
+		Pawn{player=player, place=places[2][0]}
+		Pawn{player=player, place=places[3][0]}
+
+		Rook{player=player, place=places[0][1]}
+		Bishop{player=player, place=places[1][1]}
+		Queen{player=player, place=places[2][1]}
+		Knight{player=player, place=places[3][1]}
+		
+		Knight{player=player, place=places[0][2]}
+		King{player=player, place=places[1][2]}
+		Bishop{player=player, place=places[2][2]}
+		Rook{player=player, place=places[3][2]}
+		
+		Pawn{player=player, place=places[0][3]}
+		Pawn{player=player, place=places[1][3]}
+		Pawn{player=player, place=places[2][3]}
+		Pawn{player=player, place=places[3][3]}
 	end
 end
 
@@ -455,8 +487,8 @@ function App:initGL()
 
 	-- per-game
 	self.players = table()
-	self.board = TraditionalBoard(self)
-	--self.board = CubeBoard()
+	--self.board = TraditionalBoard(self)
+	self.board = CubeBoard(self)
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
