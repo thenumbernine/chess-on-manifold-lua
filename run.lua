@@ -201,8 +201,8 @@ end
 -- TODO ... pawns ... which way is up?
 -- geodesic from king to king?  closest to the pawn?
 -- this also means  store state info for when the piece is created ... this is only true for pawns
-function Pawn:showMoves()
-	self.player.app.board:showMoves(self.place,
+function Pawn:getMoves()
+	return self.player.app.board:getMoves(self.place,
 		--start
 		function(place)
 			local nedges = #place.edges
@@ -228,8 +228,8 @@ local Bishop = Piece:subclass()
 
 Bishop.name = 'bishop'
 
-function Bishop:showMoves()
-	self.player.app.board:showMoves(self.place, 
+function Bishop:getMoves()
+	return self.player.app.board:getMoves(self.place, 
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -269,8 +269,8 @@ local Knight = Piece:subclass()
 
 Knight.name = 'knight'
 
-function Knight:showMoves()
-	self.player.app.board:showMoves(self.place, 
+function Knight:getMoves()
+	return self.player.app.board:getMoves(self.place, 
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -310,8 +310,8 @@ local Rook = Piece:subclass()
 
 Rook.name = 'rook'
 
-function Rook:showMoves()
-	self.player.app.board:showMoves(
+function Rook:getMoves()
+	return self.player.app.board:getMoves(
 		self.place,
 		-- start
 		function(place)
@@ -341,8 +341,8 @@ local Queen = Piece:subclass()
 
 Queen.name = 'queen'
 
-function Queen:showMoves()
-	self.player.app.board:showMoves(self.place, 
+function Queen:getMoves()
+	return self.player.app.board:getMoves(self.place, 
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -388,8 +388,8 @@ King = Piece:subclass()
 
 King.name = 'king'
 
-function King:showMoves()
-	self.player.app.board:showMoves(self.place, 
+function King:getMoves()
+	return self.player.app.board:getMoves(self.place, 
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -539,10 +539,14 @@ function Board:getPlaceForRGB(r,g,b)
 	return self.placeForIndex[i]
 end
 
-function Board:showMoves(place, startmove, nextmove)
+-- returns a table-of-places of where the piece on this place can move
+-- TODO just merge this into Piece:getMoves
+-- and then change 'startmove' and 'nextmove' to Piece member function
+function Board:getMoves(place, startmove, nextmove)
 	assert(Place:isa(place))
 	assert(place.piece)
-	place:drawHighlight(0,1,0)
+
+	local moves = table()
 
 	-- now traverse the manifold, stepping in each direction
 	local function iterate(draw, p, srcp, step, already, state)
@@ -560,7 +564,7 @@ function Board:showMoves(place, startmove, nextmove)
 				return
 			end
 
-			p:drawHighlight(1,0,0)
+			moves:insert(p)
 			
 			-- same, unfriendly
 			if p.piece and p.piece.player ~= place.piece.player then
@@ -612,6 +616,8 @@ end
 			iterate(draw, n.place, place, 1, already, state)
 		end
 	end
+
+	return moves
 end
 
 
@@ -833,11 +839,24 @@ function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
+print[[
+TODO
+only pick new highlighted places upon click
+then make click toggle show/hide
+then fix up the getMoves to be member of Piece
+then ... add real moving
+]]
 		local piece = self.selectedPlace.piece
 		if piece 
-		and piece.showMoves
+		and piece.getMoves
 		then
-			piece:showMoves()
+			self.highlightedPlaces = piece:getMoves()
+		end
+		if self.highlightedPlaces then
+			piece.place:drawHighlight(0,1,0)
+			for _,place in ipairs(self.highlightedPlaces) do
+				place:drawHighlight(1,0,0)
+			end
 		end
 	end
 
