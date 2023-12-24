@@ -119,9 +119,12 @@ function Piece:draw()
 	gl.glAlphaFunc(gl.GL_GREATER, .5)
 	local player = self.player
 	local app = player.app
+	local place = self.place
+	local n = place.normal
 	local vx = app.view.angle:xAxis()
-	local vy = app.view.angle:yAxis()
-	local vz = app.view.angle:zAxis()
+	-- project 'x' onto 'n'
+	vx = n:project(vx)
+	vy = n:cross(vx)
 	local tex = app.pieceTexs[player.index][self.name]
 	tex
 		:enable()
@@ -130,10 +133,10 @@ function Piece:draw()
 	gl.glBegin(gl.GL_QUADS)
 	for _,uv in ipairs(uvs) do
 		gl.glTexCoord3f(uv:unpack())
-		gl.glVertex3f((self.place.center 
+		gl.glVertex3f((place.center 
 			+ (uv.x - .5) * vx 
 			- (uv.y - .5) * vy
-			+ vz
+			+ .01 * n
 		):unpack())
 	end
 	gl.glEnd()
@@ -332,7 +335,7 @@ function TraditionalBoard:makePlaces()
 		for i=0,7 do
 			Place{
 				board = self,
-				color = (i+j)%2 == 0 and vec3f(1,1,1) or vec3f(.2, .2, .2),
+				color = (i+j)%2 == 1 and vec3f(1,1,1) or vec3f(.2, .2, .2),
 				vtxs={
 					vec3f(i-4, j-4, 0),
 					vec3f(i-3, j-4, 0),
