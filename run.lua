@@ -8,6 +8,7 @@ local vec4ub = require 'vec-ffi.vec4ub'
 local quatf = require 'vec-ffi.quatf'
 local Image = require 'image'
 local GLTex2D = require 'gl.tex2d'
+local ig = require 'imgui'
 
 local App = require 'imguiapp.withorbit'()
 App.title = 'Chess or something'
@@ -165,6 +166,10 @@ function Pawn:initAfterPlacing()
 	end):mapi(function(place)
 		return place.center
 	end)
+	if #thisKings == 0 then
+		self.dir = 1
+		return
+	end
 	local thisKingPos = thisKings:sum() / #thisKings
 
 	local otherKings = self.player.app.board.places:filter(function(place)
@@ -209,6 +214,7 @@ function Pawn:showMoves()
 		function(place, edgeindex, step)
 			local nedges = #place.edges
 			return coroutine.wrap(function()
+				if self.moved then return end
 				-- if this is our starting square then ...
 				if step > 1 then return end
 				coroutine.yield((edgeindex + math.floor(nedges/2)) % nedges)
@@ -438,6 +444,13 @@ function Board:init(app)
 	self.places = table()
 end
 
+function Board:makePiece(args)
+	local cl = assert(args.class)
+	if not self.app.enablePieces[cl.name] then return end
+	args.class = nil
+	cl(args)
+end
+
 function Board:buildEdges()
 	local epsilon = 1e-7
 
@@ -526,22 +539,9 @@ function Board:getPlaceForRGB(r,g,b)
 	return self.placeForIndex[i]
 end
 
-local function quatFromVectors(a, b)
-	a = a:normalize()
-	b = b:normalize()
-	local axis = a:cross(b)
-	local axislen = axis:length()
-	local angle = math.deg(math.asin(math.clamp(axislen,-1,1)))
-	return axislen < 1e-7
-		and quatf(0,0,0,1) 
-		or quatf():fromAngleAxis(
-			axis.x, axis.y, axis.z,
-			angle
-		)
-end
-
 function Board:showMoves(place, startmove, nextmove)
 	assert(Place:isa(place))
+	assert(place.piece)
 	place:drawHighlight(0,1,0)
 
 	-- now traverse the manifold, stepping in each direction
@@ -550,8 +550,22 @@ function Board:showMoves(place, startmove, nextmove)
 		assert(Place:isa(srcp))
 		if already[p] then return end
 		already[p] = true
+	
+		-- TODO "draw" should be "checkTakePiece" or something
+		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
 		if draw or draw == nil then
+		
+			-- if we hit a friendly then stop movement ... always ... ?
+			if p.piece and p.piece.player == place.piece.player then
+				return
+			end
+
 			p:drawHighlight(1,0,0)
+			
+			-- same, unfriendly
+			if p.piece and p.piece.player ~= place.piece.player then
+				return
+			end
 		end
 
 		-- using edges instead of projective basis
@@ -626,17 +640,17 @@ function TraditionalBoard:makePlaces()
 		for i=1,2 do
 			local player = Player(self.app)
 			local y = 7 * (i-1)
-			Rook{player=player, place=self.places[1 + 0 + 8 * y]}
-			Knight{player=player, place=self.places[1 + 1 + 8 * y]}
-			Bishop{player=player, place=self.places[1 + 2 + 8 * y]}
-			Queen{player=player, place=self.places[1 + 3 + 8 * y]}
-			King{player=player, place=self.places[1 + 4 + 8 * y]}
-			Bishop{player=player, place=self.places[1 + 5 + 8 * y]}
-			Knight{player=player, place=self.places[1 + 6 + 8 * y]}
-			Rook{player=player, place=self.places[1 + 7 + 8 * y]}
+			self:makePiece{class=Rook, player=player, place=self.places[1 + 0 + 8 * y]}
+			self:makePiece{class=Knight, player=player, place=self.places[1 + 1 + 8 * y]}
+			self:makePiece{class=Bishop, player=player, place=self.places[1 + 2 + 8 * y]}
+			self:makePiece{class=Queen, player=player, place=self.places[1 + 3 + 8 * y]}
+			self:makePiece{class=King, player=player, place=self.places[1 + 4 + 8 * y]}
+			self:makePiece{class=Bishop, player=player, place=self.places[1 + 5 + 8 * y]}
+			self:makePiece{class=Knight, player=player, place=self.places[1 + 6 + 8 * y]}
+			self:makePiece{class=Rook, player=player, place=self.places[1 + 7 + 8 * y]}
 			local y = 5 * (i-1) + 1
 			for x=0,7 do
-				Pawn{player=player, place=self.places[1 + x + 8 * y]}
+				self:makePiece{class=Pawn, player=player, place=self.places[1 + x + 8 * y]}
 			end
 		end
 	end
@@ -686,25 +700,25 @@ function CubeBoard:makePlaces()
 			assert(player.index == i)
 			local places = placesPerSide[0][2*i-3]
 			
-			Pawn{player=player, place=places[0][0]}
-			Pawn{player=player, place=places[1][0]}
-			Pawn{player=player, place=places[2][0]}
-			Pawn{player=player, place=places[3][0]}
+			self:makePiece{class=Pawn, player=player, place=places[0][0]}
+			self:makePiece{class=Pawn, player=player, place=places[1][0]}
+			self:makePiece{class=Pawn, player=player, place=places[2][0]}
+			self:makePiece{class=Pawn, player=player, place=places[3][0]}
 
-			Bishop{player=player, place=places[0][1]}
-			Rook{player=player, place=places[1][1]}
-			Queen{player=player, place=places[2][1]}
-			Knight{player=player, place=places[3][1]}
+			self:makePiece{class=Bishop, player=player, place=places[0][1]}
+			self:makePiece{class=Rook, player=player, place=places[1][1]}
+			self:makePiece{class=Queen, player=player, place=places[2][1]}
+			self:makePiece{class=Knight, player=player, place=places[3][1]}
 			
-			Knight{player=player, place=places[0][2]}
-			King{player=player, place=places[1][2]}
-			Rook{player=player, place=places[2][2]}
-			Bishop{player=player, place=places[3][2]}
+			self:makePiece{class=Knight, player=player, place=places[0][2]}
+			self:makePiece{class=King, player=player, place=places[1][2]}
+			self:makePiece{class=Rook, player=player, place=places[2][2]}
+			self:makePiece{class=Bishop, player=player, place=places[3][2]}
 			
-			Pawn{player=player, place=places[0][3]}
-			Pawn{player=player, place=places[1][3]}
-			Pawn{player=player, place=places[2][3]}
-			Pawn{player=player, place=places[3][3]}
+			self:makePiece{class=Pawn, player=player, place=places[0][3]}
+			self:makePiece{class=Pawn, player=player, place=places[1][3]}
+			self:makePiece{class=Pawn, player=player, place=places[2][3]}
+			self:makePiece{class=Pawn, player=player, place=places[3][3]}
 		end
 	end
 end
@@ -762,11 +776,27 @@ function App:initGL()
 			self.pieceTexs[color][piece] = tex
 		end
 	end
+	
+	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+	gl.glEnable(gl.GL_DEPTH_TEST)
 
+	self.enablePieces = {
+		king = true,	-- always
+		queen = true,
+		bishop = true,
+		knight = true,
+		rook = true,
+		pawn = true,
+	}
+	self:newGame()
+end
+
+function App:newGame(boardClass)
+	boardClass = boardClass or CubeBoard
+	--boardClass = boardClass or TraditionalBoard
 	-- per-game
 	self.players = table()
-	self.board = TraditionalBoard(self)
-	--self.board = CubeBoard(self)
+	self.board = boardClass(self)
 	self.board:makePlaces()
 	self.board:buildEdges()
 	self.board:makePieces()
@@ -779,9 +809,6 @@ function App:initGL()
 			piece:initAfterPlacing()
 		end
 	end
-
-	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
-	gl.glEnable(gl.GL_DEPTH_TEST)
 end
 
 local result = vec4ub()
@@ -798,7 +825,6 @@ function App:update()
 		self.mouseOverPlace = self.board:getPlaceForRGB(result:unpack())
 		if self.mouse.leftClick then
 			self.selectedPlace = self.mouseOverPlace
-print(result:unpack(), self.selectedPlace.center)
 		end
 	end
 
@@ -817,6 +843,30 @@ print(result:unpack(), self.selectedPlace.center)
 
 	-- this does the gui drawing *and* does the gl matrix setup
 	App.super.update(self)
+end
+
+function App:updateGUI()
+	local mesh = self.mesh
+	if ig.igBeginMainMenuBar() then
+		if ig.igBeginMenu'File' then
+			if ig.igButton'New Game: Traditional' then
+				self:newGame(TraditionalBoard)
+			end
+			if ig.igButton'New Game: Cube' then
+				self:newGame(CubeBoard)
+			end
+			ig.igEndMenu()
+		end
+		if ig.igBeginMenu'Options' then
+			ig.luatableCheckbox('pawns', self.enablePieces, 'pawn')
+			ig.luatableCheckbox('bishops', self.enablePieces, 'bishop')
+			ig.luatableCheckbox('knights', self.enablePieces, 'knight')
+			ig.luatableCheckbox('rooks', self.enablePieces, 'rook')
+			ig.luatableCheckbox('queens', self.enablePieces, 'queen')
+			ig.igEndMenu()
+		end
+		ig.igEndMainMenuBar()
+	end
 end
 
 return App():run()
