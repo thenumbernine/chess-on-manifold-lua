@@ -272,7 +272,7 @@ local function quatFromVectors(a, b)
 		)
 end
 
-function Board:showMoves(place, canmove)
+function Board:showMoves(place, startmove, nextmove)
 	assert(Place:isa(place))
 	place:drawHighlight(0,1,0)
 
@@ -280,13 +280,14 @@ function Board:showMoves(place, canmove)
 	already[place] = true
 
 	-- now traverse the manifold, stepping in each direction
-	-- neighbor info ... needs a direction ...
-	local function iterate(p, srcp, step)
+	local function iterate(draw, p, srcp, step, state)
 		assert(Place:isa(p))
 		assert(Place:isa(srcp))
 		if already[p] then return end
 		already[p] = true
-		p:drawHighlight(1,0,0)
+		if draw or draw == nil then
+			p:drawHighlight(1,0,0)
+		end
 
 		-- using edges instead of projective basis
 		-- find 'p's neighborhood entry that points back to 'srcp'
@@ -307,20 +308,27 @@ end
 		-- cycle  around thema nd see if the piece should move in that direction
 		-- ...
 		-- hmm, for modulo math's sake, 0-based indexes would be very nice here ...
-		for j in canmove(p, i-1, step) do
+		-- yields:
+		-- 1st: neighborhood index
+		-- 2nd: mark or not
+		for j, draw in nextmove(p, i-1, step, state) do
 			-- now pick the piece
 			local n = p.edges[j+1]
 			if n and n.place then
-				iterate(n.place, p, step+1)
+				iterate(draw, n.place, p, step+1, state)
 			end
 		end
 	end
 
-	for j in canmove(place, nil, 0) do
+	-- yields:
+	-- 1st: neighborhood index (0-based)
+	-- 2nd: mark or not
+	-- 3rd: is forwarded as state variables to 'nextmove'
+	for j, draw, state in startmove(place) do
 		local n = place.edges[j+1]
 		if n and n.place then
 			-- make a basis between 'place' and neighbor 'n'
-			iterate(n.place, place, 1)
+			iterate(draw, n.place, place, 1, state)
 		end
 	end
 end
@@ -516,41 +524,48 @@ print(result:unpack(), self.selectedPlace.center)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
-		local function cardinalMove(place, edgeindex, step)
+		-- [[ rook moves
+		local function rookStart(place)
 			local nedges = #place.edges
 			return coroutine.wrap(function()
-				-- rook init? cycle all
-				if step == 0 then
-					for i=0,nedges-1 do
-						coroutine.yield(i)
-					end
-				else
-					for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
-						coroutine.yield((edgeindex + ofs) % nedges)
-					end
+				for i=0,nedges-1 do
+					coroutine.yield(i)
 				end
 			end)
 		end
-		-- [[ rook moves
-		self.board:showMoves(self.selectedPlace, cardinalMove)
+		local function rookStep(place, edgeindex, step)
+			local nedges = #place.edges
+			return coroutine.wrap(function()
+				for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
+					coroutine.yield(
+						(edgeindex + ofs) % nedges
+						--, step % 2 == 0	-- ex: rook that must change color
+					)
+				end
+			end)
+		end
+		self.board:showMoves(self.selectedPlace, rookStart, rookStep)
 		--]]
 		--[[ bishop moves
-		self.board:showMoves(self.selectedPlace, function(place, edgeindex, step)
-			local nedges = #place.edges
-			if step % 2 == 0 then
-				--return cardinalMove(place, edgeindex, step)
+		self.board:showMoves(self.selectedPlace, 
+			-- start
+			function(place)
 				return coroutine.wrap(function()
-					coroutine.yield((edgeindex + 2) % nedges)
+					for i=0,#place.edges-1 do
+						for lr=-1,1,2 do	-- left vs right
+							coroutine.yield(false, i, lr)
+						end
+					end
 				end)
-			elseif step % 2 == 1 then
+			end,
+			-- step
+			function(place, edgeindex, step, lr)
+				local nedges = #place.edges
 				return coroutine.wrap(function()
-					coroutine.yield((edgeindex + 3) % nedges)
-					--coroutine.yield((edgeindex + 3) % nedges)
-					--coroutine.yield((edgeindex + 1) % nedges)
-					--coroutine.yield((edgeindex + 1 + math.floor(nedges/2)) % nedges)
+					coroutine.yield(true, (edgeindex + math.floor(nedges/2) + lr) % nedges)
 				end)
 			end
-		end)
+		)
 		--]]
 	end
 
