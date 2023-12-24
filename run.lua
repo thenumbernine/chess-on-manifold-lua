@@ -71,7 +71,13 @@ function Place:draw()
 	gl.glColor3f(0,0,0)
 	self:drawLine()
 
-	gl.glColor3f(self.color:unpack())
+	if self == self.board.app.mouseOverPlace then
+		gl.glColor3f(1,0,0)
+	elseif self == self.board.app.selectedPlace then
+		gl.glColor3f(0,0,1)
+	else
+		gl.glColor3f(self.color:unpack())
+	end
 	self:drawPolygon()
 
 	if self.piece then
@@ -415,15 +421,15 @@ function CubeBoard:makePlaces()
 		Pawn{player=player, place=places[2][0]}
 		Pawn{player=player, place=places[3][0]}
 
-		Rook{player=player, place=places[0][1]}
-		Bishop{player=player, place=places[1][1]}
+		Bishop{player=player, place=places[0][1]}
+		Rook{player=player, place=places[1][1]}
 		Queen{player=player, place=places[2][1]}
 		Knight{player=player, place=places[3][1]}
 		
 		Knight{player=player, place=places[0][2]}
 		King{player=player, place=places[1][2]}
-		Bishop{player=player, place=places[2][2]}
-		Rook{player=player, place=places[3][2]}
+		Rook{player=player, place=places[2][2]}
+		Bishop{player=player, place=places[3][2]}
 		
 		Pawn{player=player, place=places[0][3]}
 		Pawn{player=player, place=places[1][3]}
@@ -505,9 +511,10 @@ function App:update()
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
 	
-		self.selectedPlace = self.board:getPlaceForRGB(result:unpack())
+		self.mouseOverPlace = self.board:getPlaceForRGB(result:unpack())
 		if self.mouse.leftClick then
-			print(result:unpack(), self.selectedPlace.center)
+			self.selectedPlace = self.mouseOverPlace
+print(result:unpack(), self.selectedPlace.center)
 		end
 	end
 
