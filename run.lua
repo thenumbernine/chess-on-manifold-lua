@@ -73,16 +73,16 @@ function Place:draw()
 
 	gl.glColor3f(self.color:unpack())
 	self:drawPolygon()
+
+	if self.piece then
+		self.piece:draw()
+	end
 end
 
 function Place:drawPicking()
 	-- assume color is already set
 	-- and don't bother draw the outline
 	self:drawPolygon()
-
-	if self.piece then
-		self.piece:draw()
-	end
 end
 
 function Place:drawHighlight(r,g,b,a)
@@ -109,22 +109,38 @@ function Piece:init(args)
 end
 
 local uvs = table{
-	vec3f(-1,-1,0),
-	vec3f(-1,1,0),
+	vec3f(0,0,0),
+	vec3f(0,1,0),
 	vec3f(1,1,0),
-	vec3f(1,-1,0),
+	vec3f(1,0,0),
 }
 function Piece:draw()
+	gl.glEnable(gl.GL_ALPHA_TEST)
+	gl.glAlphaFunc(gl.GL_GREATER, .5)
 	local player = self.player
-	local tex = player.app.pieceTexs[player.index][self.name]
-	tex:bind()
+	local app = player.app
+	local vx = app.view.angle:xAxis()
+	local vy = app.view.angle:yAxis()
+	local vz = app.view.angle:zAxis()
+	local tex = app.pieceTexs[player.index][self.name]
+	tex
+		:enable()
+		:bind()
+	gl.glColor3f(1,1,1)
 	gl.glBegin(gl.GL_QUADS)
 	for _,uv in ipairs(uvs) do
 		gl.glTexCoord3f(uv:unpack())
-		gl.glVertex3f((self.place.center + uv):unpack())
+		gl.glVertex3f((self.place.center 
+			+ (uv.x - .5) * vx 
+			- (uv.y - .5) * vy
+			+ vz
+		):unpack())
 	end
 	gl.glEnd()
-	tex:unbind()
+	tex
+		:unbind()
+		:disable()
+	gl.glDisable(gl.GL_ALPHA_TEST)
 end
 
 
@@ -330,9 +346,9 @@ function TraditionalBoard:makePlaces()
 	-- board makes players?  or app makes players?  hmm
 	-- board holds players?
 	assert(#self.app.players == 0)
-	for playerindex=1,2 do
+	for i=1,2 do
 		local player = Player(self.app)
-		local y = (7 * (playerindex-1))
+		local y = 7 * (i-1)
 		Rook{player=player, place=self.places[1 + 0 + 8 * y]}
 		Knight{player=player, place=self.places[1 + 1 + 8 * y]}
 		Bishop{player=player, place=self.places[1 + 2 + 8 * y]}
@@ -341,7 +357,7 @@ function TraditionalBoard:makePlaces()
 		Bishop{player=player, place=self.places[1 + 5 + 8 * y]}
 		Knight{player=player, place=self.places[1 + 6 + 8 * y]}
 		Rook{player=player, place=self.places[1 + 7 + 8 * y]}
-		local y = 5 * (playerindex-1) + 1
+		local y = 5 * (i-1) + 1
 		for x=0,7 do
 			Pawn{player=player, place=self.places[1 + x + 8 * y]}
 		end
@@ -392,6 +408,17 @@ function App:initGL()
 	print(piecesImg.width, piecesImg.height)
 	assert(piecesImg.width == 256*6)
 	assert(piecesImg.height == 256*2)
+	assert(piecesImg.channels == 4)
+	for y=0,piecesImg.height-1 do
+		for x=0,piecesImg.width-1 do
+			local i = 4 * (x + piecesImg.width * y)
+			if piecesImg.buffer[3 + i] < 127 then
+				piecesImg.buffer[0 + i] = 0
+				piecesImg.buffer[1 + i] = 0xff
+				piecesImg.buffer[2 + i] = 0xff
+			end
+		end
+	end
 	for y,color in ipairs{
 		'white',
 		'black',
@@ -406,18 +433,19 @@ function App:initGL()
 			'rook',
 			'pawn',
 		} do
-			local pieceImg = piecesImg:copy{
-				x = 256*x,
-				y = 256*y,
+			local image = piecesImg:copy{
+				x = 256*(x-1),
+				y = 256*(y-1),
 				width = 256,
 				height = 256,
 			}
 			local tex = GLTex2D{
-				image = pieceImg,
+				image = image,
 				minFilter = gl.GL_NEAREST,
 				magFilter = gl.GL_LINEAR,
 			}
 			tex.image = image
+			tex.image:save(piece..'-'..color..'.png')
 			self.pieceTexs[color][piece] = tex
 		end
 	end
@@ -434,6 +462,7 @@ end
 local result = vec4ub()
 function App:update()
 	-- determine tile under mouse
+	gl.glClearColor(0,0,0,1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:drawPicking()
 	local i, j = self.mouse.ipos:unpack()
@@ -448,9 +477,9 @@ function App:update()
 	end
 
 	-- draw
+	gl.glClearColor(.5, .5, .5, 1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
-
 	if self.selectedPlace then
 		-- [[ rook moves
 		self.board:showMoves(self.selectedPlace, function(bs, cs, step)
