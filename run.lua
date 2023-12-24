@@ -226,7 +226,7 @@ function Board:init(app)
 				place = neighbor,
 			}
 		end
-print(pa.index, #pa.edges)
+--print(pa.index, #pa.edges)
 	end
 end
 
@@ -303,7 +303,7 @@ function Board:showMoves(place, canmove)
 		already[p] = true
 		p:drawHighlight(1,0,0)
 
-		-- [=[ using edges instead of projective basis
+		-- using edges instead of projective basis
 		-- find 'p's neighborhood entry that points back to 'srcp'
 		local i,nbhd = p.edges:find(nil, function(nbhd)
 			return nbhd.place == srcp
@@ -318,45 +318,15 @@ if not nbhd then
 end
 		assert(nbhd)
 
-		-- now cycle half 
-		i = i - 1
-		i = i + math.floor(#p.edges/2)
-		i = i % #p.edges
-		i = i + 1
-
-		-- now pick the piece
-		local n = p.edges[i].place
-		if n then
-			iterate(n, p, step+1)
-		end
-
-		--]=]
-		--[=[ using basis ...
-		-- .. this has problems cuz I don't yet distinguish moving from an x axis to a y axis ...
-
-		for _,info in ipairs(p.edges) do
-			local n = assert(info.place)
-			assert(Place:isa(n))
-			local cs = buildBasis(p, n)
-
-			-- now rotate 'b' into the current tangent basis ... based on the normals
-			-- [[
-			local q = quatFromVectors(p.normal, n.normal)
-			local bs = {
-				q:rotate(obs[1]),
-				q:rotate(obs[2]),
-				q:rotate(obs[3]),
-			}
-			--]]
-			--[[
-			local bs = {obs[1], obs[2], obs[3]}
-			--]]
-
-			if canmove(bs, cs, step) then
-				iterate(n, p, step+1, bs)
+		-- now each piece should pick the next neighbor based on the prev neighbor and the neighborhood ...
+		-- cycle  around thema nd see if the piece should move in that direction
+		for j in canmove(p, i, step) do
+			-- now pick the piece
+			local n = p.edges[j].place
+			if n then
+				iterate(n, p, step+1)
 			end
 		end
-		--]=]
 	end
 
 	for _,n in ipairs(place.edges) do
@@ -559,8 +529,16 @@ print(result:unpack(), self.selectedPlace.center)
 	self.board:draw()
 	if self.selectedPlace then
 		-- [[ rook moves
-		self.board:showMoves(self.selectedPlace, function(bs, cs, step)
-			return math.abs(bs[1]:dot(cs[1])) > .7
+		self.board:showMoves(self.selectedPlace, function(place, startedgeindex, step)
+			local nextindex = startedgeindex
+			nextindex = nextindex - 1
+			-- TODO handle 5-sided, iterate on 3 and 4, not just 3 ...
+			nextindex = nextindex + math.floor(#place.edges/2)
+			nextindex = nextindex % #place.edges
+			nextindex = nextindex + 1
+			return coroutine.wrap(function()
+				coroutine.yield(nextindex)
+			end)
 		end)
 		--]]
 		--[[ bishop moves
