@@ -231,6 +231,7 @@ function Board:init(app)
 				}
 			end
 		end
+--print(pa.index, #pa.neighbors)
 	end
 end
 
@@ -262,10 +263,6 @@ function Board:getPlaceForRGB(r,g,b)
 	return self.placeForIndex[i]
 end
 
-local function project(v, n)
-	return v - n * v:dot(n) / n:dot(n)
-end
-
 local function quatFromVectors(a, b)
 	a = a:normalize()
 	b = b:normalize()
@@ -281,16 +278,23 @@ local function quatFromVectors(a, b)
 end
 
 function Board:showMoves(place, canmove)
-do return end	-- TODO use neighbors[i].place and .opposites[]
+	assert(Place:isa(place))
+--do return end	-- TODO use neighbors[i].place and .opposites[]
 	place:drawHighlight(0,1,0)
 
 	local already = {}
 	already[place] = true
 
 	local function buildBasis(p, n)
+		assert(p)
+		assert(Place:isa(p))
+		assert(n)
+		assert(Place:isa(n))
 		local bs = {}
-		local proj = p.normal
-		bs[1] = project(n.center - p.center, proj):normalize()
+		local proj = assert(p.normal)
+		assert(n.center)
+		assert(p.center)
+		bs[1] = proj:project(n.center - p.center):normalize()
 		bs[2] = vec3f(proj:unpack())
 		bs[3] = bs[1]:cross(bs[2]):normalize()
 		return bs
@@ -299,12 +303,15 @@ do return end	-- TODO use neighbors[i].place and .opposites[]
 	-- now traverse the manifold, stepping in each direction
 	-- neighbor info ... needs a direction ...
 	local function iterate(p, p2, step, obs)
+		assert(Place:isa(p))
+		assert(Place:isa(p2))
 		if already[p] then return end
 		already[p] = true
 		p:drawHighlight(1,0,0)
 
 		for _,info in ipairs(p.neighbors) do
-			local n = info.place
+			local n = assert(info.place)
+			assert(Place:isa(n))
 			local cs = buildBasis(p, n)
 
 			-- now rotate 'b' into the current tangent basis ... based on the normals
@@ -328,8 +335,8 @@ do return end	-- TODO use neighbors[i].place and .opposites[]
 
 	for _,n in ipairs(place.neighbors) do
 		-- make a basis between 'place' and neighbor 'n'
-		local bs = buildBasis(place, n)
-		iterate(n, place, 1, bs)
+		local bs = buildBasis(place, n.place)
+		iterate(n.place, place, 1, bs)
 	end
 end
 
