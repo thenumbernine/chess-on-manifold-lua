@@ -77,8 +77,13 @@ function App:initGL()
 			self.pieceTexs[color][piece] = tex
 		end
 	end
-	
+
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+	gl.glEnable(gl.GL_BLEND)
+	
+	gl.glAlphaFunc(gl.GL_GREATER, .1)
+	gl.glEnable(gl.GL_ALPHA_TEST)
+	
 	gl.glEnable(gl.GL_DEPTH_TEST)
 
 	self.netcom = NetCom()
@@ -86,6 +91,8 @@ function App:initGL()
 	self.port = 12345
 	self.threads = ThreadManager()
 
+	-- init gui vars:
+	self.transparentBoard = false
 	self.enablePieces = {
 		king = true,	-- always
 		queen = true,
@@ -94,6 +101,7 @@ function App:initGL()
 		rook = true,
 		pawn = true,
 	}
+	
 	self:newGame()
 end
 
@@ -116,6 +124,17 @@ function App:newGame(boardClass)
 		end
 	end
 	self.turn = 1
+	self:refreshMoves()
+end
+
+-- calculate all moves for all pieces
+function App:refreshMoves()
+	for _,place in ipairs(self.board.places) do
+		local piece = place.piece
+		if piece then
+			piece.moves = piece:getMoves()
+		end
+	end
 end
 
 local result = vec4ub()
@@ -145,6 +164,8 @@ function App:update()
 				)
 			
 				self.turn = self.turn % #self.players + 1
+
+				self:refreshMoves()
 			else
 				if self.mouseOverPlace
 				and self.mouseOverPlace.piece
@@ -152,9 +173,7 @@ function App:update()
 					self.selectedPlace = self.mouseOverPlace
 					if self.selectedPlace then
 						local piece = self.selectedPlace.piece
-						if piece 
-						and piece.getMoves
-						then
+						if piece then
 							self.highlightedPlaces = piece:getMoves()
 						else
 							self.highlightedPlaces = nil
@@ -171,15 +190,19 @@ function App:update()
 	gl.glClearColor(.5, .5, .5, 1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
+	
 	if self.selectedPlace then
 		if self.selectedPlace then
-			self.selectedPlace:drawHighlight(0,1,0)
+			self.selectedPlace:drawHighlight(0,1,0, .3)
 		end
 		if self.highlightedPlaces then
 			for _,place in ipairs(self.highlightedPlaces) do
-				place:drawHighlight(1,0,0)
+				place:drawHighlight(1,0,0, .3)
 			end
 		end
+	end
+	if self.mouseOverPlace then
+		self.mouseOverPlace:drawHighlight(0,0,1, .3)
 	end
 
 	-- this does the gui drawing *and* does the gl matrix setup
@@ -209,11 +232,17 @@ function App:updateGUI()
 			ig.igEndMenu()
 		end
 		if ig.igBeginMenu'Options' then
+			ig.igSeparator()
+			ig.igText'disable...'
 			ig.luatableCheckbox('pawns', self.enablePieces, 'pawn')
 			ig.luatableCheckbox('bishops', self.enablePieces, 'bishop')
 			ig.luatableCheckbox('knights', self.enablePieces, 'knight')
 			ig.luatableCheckbox('rooks', self.enablePieces, 'rook')
 			ig.luatableCheckbox('queens', self.enablePieces, 'queen')
+			ig.igEndMenu()
+		end
+		if ig.igBeginMenu'View' then
+			ig.luatableCheckbox('Transparent Board', self, 'transparentBoard')
 			ig.igEndMenu()
 		end
 		if ig.igBeginMenu('...  '..self.colors[self.turn].."'s turn") then

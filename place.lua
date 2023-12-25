@@ -62,13 +62,10 @@ function Place:draw()
 	gl.glColor3f(0,0,0)
 	self:drawLine()
 
-	if self == self.board.app.mouseOverPlace then
-		gl.glColor3f(0,0,1)
-	else
+	if not self.board.app.transparentBoard then
 		gl.glColor3f(self.color:unpack())
+		self:drawPolygon()
 	end
-	self:drawPolygon()
-
 	if self.piece then
 		self.piece:draw()
 	end
@@ -85,10 +82,8 @@ function Place:drawHighlight(r,g,b,a)
 	gl.glDepthFunc(gl.GL_LEQUAL)
 	gl.glColor4f(r,g,b,a)
 	self:drawLine()
-	gl.glEnable(gl.GL_BLEND)
 	self:drawPolygon()
 	gl.glDepthFunc(gl.GL_LESS)
-	gl.glDisable(gl.GL_BLEND)
 end
 
 return Place

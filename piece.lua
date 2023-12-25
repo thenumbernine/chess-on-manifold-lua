@@ -21,16 +21,16 @@ local uvs = table{
 	vec3f(1,0,0),
 }
 function Piece:draw()
-	gl.glEnable(gl.GL_ALPHA_TEST)
-	gl.glAlphaFunc(gl.GL_GREATER, .5)
 	local player = self.player
 	local app = player.app
 	local place = self.place
 	local n = place.normal
-	local vx = app.view.angle:xAxis()
+	local viewX = app.view.angle:xAxis()
+	local viewY = app.view.angle:yAxis()
 	-- project 'x' onto 'n'
-	vx = n:project(vx)
-	vy = n:cross(vx)
+	local drawX = n:project(viewX):normalize()
+	local drawY = n:cross(drawX):normalize()
+	if drawY:dot(viewY) < 0 then drawY = -drawY end	-- draw facing up if possible
 	local tex = app.pieceTexs[player.index][self.name]
 	tex
 		:enable()
@@ -40,8 +40,8 @@ function Piece:draw()
 	for _,uv in ipairs(uvs) do
 		gl.glTexCoord3f(uv:unpack())
 		gl.glVertex3f((place.center 
-			+ (uv.x - .5) * vx 
-			- (uv.y - .5) * vy
+			+ (uv.x - .5) * drawX
+			- (uv.y - .5) * drawY
 			+ .01 * n
 		):unpack())
 	end
@@ -49,7 +49,6 @@ function Piece:draw()
 	tex
 		:unbind()
 		:disable()
-	gl.glDisable(gl.GL_ALPHA_TEST)
 end
 
 -- returns a table-of-places of where the piece on this place can move
