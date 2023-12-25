@@ -150,6 +150,21 @@ function Piece:draw()
 	gl.glDisable(gl.GL_ALPHA_TEST)
 end
 
+function Piece:moveTo(to)
+	local from = self.piece
+	if from then
+		from.piece = nil
+	end
+
+	if to.piece then
+		to.piece.place = nil
+	end
+	to.piece = self
+	if to.piece then
+		to.piece.place = to
+	end
+end
+
 
 local King
 local Pawn = Piece:subclass()
@@ -223,6 +238,10 @@ function Pawn:getMoves()
 	)
 end
 
+function Pawn:moveTo(...)
+	Pawn.super.moveTo(self, ...)
+	self.moved = true
+end
 
 local Bishop = Piece:subclass()
 
@@ -798,8 +817,8 @@ function App:initGL()
 end
 
 function App:newGame(boardClass)
-	boardClass = boardClass or CubeBoard
-	--boardClass = boardClass or TraditionalBoard
+	--boardClass = boardClass or CubeBoard
+	boardClass = boardClass or TraditionalBoard
 	-- per-game
 	self.players = table()
 	self.board = boardClass(self)
@@ -830,7 +849,28 @@ function App:update()
 	
 		self.mouseOverPlace = self.board:getPlaceForRGB(result:unpack())
 		if self.mouse.leftClick then
-			self.selectedPlace = self.mouseOverPlace
+			if self.selectedPlace
+			and self.selectedPlace.piece
+			and self.highlightedPlaces 
+			and self.highlightedPlaces:find(self.mouseOverPlace)
+			then
+				self.highlightedPlaces = nil
+				-- move the piece to that square
+
+				self.selectedPlace.piece:moveTo(
+					self.mouseOverPlace
+				)
+			else
+				self.selectedPlace = self.mouseOverPlace
+				local piece = self.selectedPlace.piece
+				if piece 
+				and piece.getMoves
+				then
+					self.highlightedPlaces = piece:getMoves()
+				else
+					self.highlightedPlaces = nil
+				end
+			end
 		end
 	end
 
@@ -839,21 +879,17 @@ function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
-print[[
+--[[
 TODO
 only pick new highlighted places upon click
 then make click toggle show/hide
 then fix up the getMoves to be member of Piece
 then ... add real moving
 ]]
-		local piece = self.selectedPlace.piece
-		if piece 
-		and piece.getMoves
-		then
-			self.highlightedPlaces = piece:getMoves()
+		if self.selectedPlace then
+			self.selectedPlace:drawHighlight(0,1,0)
 		end
 		if self.highlightedPlaces then
-			piece.place:drawHighlight(0,1,0)
 			for _,place in ipairs(self.highlightedPlaces) do
 				place:drawHighlight(1,0,0)
 			end
