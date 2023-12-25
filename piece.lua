@@ -213,11 +213,17 @@ function Pawn:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		if lr == 0 then
+		-- moving forward ...
 			if self.moved then return end
 			-- if this is our starting square then ...
 			if step > 1 then return end
-			coroutine.yield((edgeindex + math.floor(nedges/2)) % nedges)
+			local destedgeindex = (edgeindex + math.floor(nedges/2)) % nedges
+			local neighbor = place.edges[destedgeindex+1].place
+			if not neighbor then return end
+			if neighbor.piece then return end	-- ... unless we let pawns capture forward ...
+			coroutine.yield(destedgeindex)
 		else
+		-- diagonal attack...
 			if step > 1 then return end
 			local destedgeindex = (edgeindex + math.floor(nedges/2) + lr) % nedges
 			local neighbor = place.edges[destedgeindex+1].place

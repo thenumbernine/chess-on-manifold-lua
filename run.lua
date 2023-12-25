@@ -129,16 +129,22 @@ end
 
 -- calculate all moves for all pieces
 function App:refreshMoves()
+	self.inCheck = false
 	self.attacks = table()
 	for _,place in ipairs(self.board.places) do
 		local piece = place.piece
 		if piece then
 			piece.moves = piece:getMoves()
 			for _,move in ipairs(piece.moves) do
-				if move.piece 
-				and move.piece.player ~= piece.player	-- .... or allow self-attacks ...
+				local targetPiece = move.piece
+				if targetPiece 
+				and targetPiece.player ~= piece.player	-- .... or allow self-attacks ...
 				then
-					self.attacks:insert{piece, move.piece}
+					self.attacks:insert{piece, targetPiece}
+				
+					if Piece.King:isa(targetPiece) then
+						self.inCheck = true
+					end
 				end
 			end
 		end
@@ -268,7 +274,11 @@ function App:updateGUI()
 			ig.luatableCheckbox('Transparent Board', self, 'transparentBoard')
 			ig.igEndMenu()
 		end
-		if ig.igBeginMenu('...  '..self.colors[self.turn].."'s turn") then
+		local str = '...  '..self.colors[self.turn].."'s turn"
+		if self.inCheck then
+			str = str .. '... CHECK!'
+		end
+		if ig.igBeginMenu(str) then
 			ig.igEndMenu()
 		end
 		ig.igEndMainMenuBar()
