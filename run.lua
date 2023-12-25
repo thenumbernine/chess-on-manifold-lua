@@ -114,15 +114,7 @@ function App:newGame(boardClass)
 	self.board:makePlaces()
 	self.board:buildEdges()
 	self.board:makePieces()
-	-- run this after placing all pieces
-	for _,place in ipairs(self.board.places) do
-		local piece = place.piece
-		if piece 
-		and piece.initAfterPlacing
-		then
-			piece:initAfterPlacing()
-		end
-	end
+	self.board:initPieces()
 	self.turn = 1
 	self.board:refreshMoves()
 end

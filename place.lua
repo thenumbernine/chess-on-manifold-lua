@@ -42,6 +42,14 @@ function Place:init(args)
 	self.edges = table()
 end
 
+function Place:clone(newBoard)
+	return Place{
+		board = newBoard,
+		color = self.color,
+		vtxs = self.vtxs:mapi(function(v) return v:clone() end),
+	}
+end
+
 function Place:drawLine()
 	gl.glBegin(gl.GL_LINE_LOOP)
 	for _,v in ipairs(self.vtxs) do

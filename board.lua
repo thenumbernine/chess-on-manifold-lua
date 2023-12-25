@@ -82,6 +82,20 @@ function Board:buildEdges()
 	end
 end
 
+-- call this after :makePieces() or after :clone()
+-- ... to init the pawns
+function Board:initPieces()
+	-- run this after placing all pieces
+	for _,place in ipairs(self.places) do
+		local piece = place.piece
+		if piece 
+		and piece.initAfterPlacing
+		then
+			piece:initAfterPlacing()
+		end
+	end
+end
+
 function Board:draw()
 	for _,place in ipairs(self.places) do
 		place:draw()
@@ -134,6 +148,15 @@ function Board:refreshMoves()
 	end
 end
 
+function Board:clone()
+	local newBoard = setmetatable({}, getmetatable(self))
+	for _,srcPlace in ipairs(self.places) do
+		srcPlace:clone(newBoard)
+	end
+	newBoard:buildEdges()
+	newBoard:initPieces()
+	return newBoard
+end
 
 
 local TraditionalBoard = Board:subclass()
