@@ -15,275 +15,6 @@ local Place = require 'place'
 local Piece = require 'piece'
 
 
-local King
-local Pawn = Piece:subclass()
-
-Pawn.name = 'pawn'
-
--- ... pawns ... which way is up?
--- geodesic from king to king?  closest to the pawn?
--- this also means  store state info for when the piece is created ... this is only true for pawns
--- run this when we're done placing pieces
-function Pawn:initAfterPlacing()
-	-- initial dir should be the edge whose 'ey' basis vector closest aligns with the vector between kings
-	local thisKings = self.player.app.board.places:filter(function(place)
-		return place.piece
-		and King:isa(place.piece)
-		and place.piece.player == self.player
-	end):mapi(function(place)
-		return place.center
-	end)
-	if #thisKings == 0 then
-		self.dir = 1
-		return
-	end
-	local thisKingPos = thisKings:sum() / #thisKings
-
-	local otherKings = self.player.app.board.places:filter(function(place)
-		return place.piece
-		and King:isa(place.piece)
-		and place.piece.player ~= self.player
-	end):mapi(function(place)
-		return place.center
-	end)
-	local otherKingPos = otherKings:sum() / #otherKings
-
-	local dirToOtherKing = (otherKingPos - thisKingPos):normalize()
---print('dirToOtherKing', dirToOtherKing)
-	self.dir = select(2, self.place.edges:mapi(function(edge)
-		--[[ use edge basis ...
-		-- ... but what if the edge basis is in the perpendicular plane?
-		return (edge.ey:dot(dirToOtherKing))
-		--]]
-		-- [[ use line to neighboring tile
-		if not edge.place then return -math.huge end
-		return (edge.place.center - self.place.center):normalize():dot(dirToOtherKing)
-		--]]
-	end):sup())
-	assert(self.dir)
---	local edge = self.place.edges[self.dir]
---print('dir', edge.ex, edge.ey)
-end
-
-function Pawn:moveStart(place)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		for lr=-1,1 do
-			coroutine.yield((self.dir-1) % nedges, true, lr)
-		end
-	end)
-end
-
-function Pawn:moveStep(place, edgeindex, step, lr)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		if lr == 0 then
-			if self.moved then return end
-			-- if this is our starting square then ...
-			if step > 1 then return end
-			coroutine.yield((edgeindex + math.floor(nedges/2)) % nedges)
-		else
-			if step > 1 then return end
-			local destedgeindex = (edgeindex + math.floor(nedges/2) + lr) % nedges
-			local neighbor = place.edges[destedgeindex+1].place
-			if not neighbor then return end
-			if neighbor.piece then
-				if neighbor.piece.player ~= self.player then -- ... or if we're allowing self-capture ...
-					coroutine.yield(
-						destedgeindex,
-						true
-					)
-				end
-			else
-				-- else - 
-				-- TODO if no piece - then look if a pawn just hopped over this last turn ... if so then allow en piss ant
-			end
-		end
-	end)
-end
-
-function Pawn:moveTo(...)
-	Pawn.super.moveTo(self, ...)
-	self.moved = true
-end
-
-local Bishop = Piece:subclass()
-
-Bishop.name = 'bishop'
-
-function Bishop:moveStart(place)
-	return coroutine.wrap(function()
-		for i=0,#place.edges-1 do
-			for lr=-1,1,2 do	-- left vs right
-				coroutine.yield(
-					i,		-- neighbor
-					false,	-- mark? not for the first step
-					lr		-- state: left vs right
-				)
-			end
-		end
-	end)
-end
-
-function Bishop:moveStep(place, edgeindex, step, lr)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		if step % 2 == 0 then
-			coroutine.yield(
-				(edgeindex + math.floor(nedges/2) - lr) % nedges,
-				false
-			)
-		else
-			coroutine.yield(
-				(edgeindex + math.floor(nedges/2) + lr) % nedges,
-				true
-			)
-		end
-	end)
-end
-
-
-local Knight = Piece:subclass()
-
-Knight.name = 'knight'
-
-function Knight:moveStart(place)
-	return coroutine.wrap(function()
-		for i=0,#place.edges-1 do
-			for lr=-1,1,2 do	-- left vs right
-				coroutine.yield(
-					i,		-- neighbor
-					false,	-- mark? not for the first step
-					lr		-- state: left vs right
-				)
-			end
-		end
-	end)
-end
-		
-function Knight:moveStep(place, edgeindex, step, lr)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		if step < 2 then
-			coroutine.yield(
-				(edgeindex + math.floor(nedges/2)) % nedges,
-				false
-			)
-		elseif step == 2 then
-			coroutine.yield(
-				(edgeindex + math.floor(nedges/2) + lr) % nedges,
-				true
-			)
-		end
-	end)
-end
-
-
-local Rook = Piece:subclass()
-
-Rook.name = 'rook'
-
-function Rook:moveStart(place)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		for i=0,nedges-1 do
-			coroutine.yield(i)
-		end
-	end)
-end
-
-function Rook:moveStep(place, edgeindex, step)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
-			coroutine.yield(
-				(edgeindex + ofs) % nedges
-				--, step % 2 == 0	-- ex: rook that must change color
-			)
-		end
-	end)
-end
-
-
-local Queen = Piece:subclass()
-
-Queen.name = 'queen'
-
-function Queen:moveStart(place)
-	return coroutine.wrap(function()
-		for i=0,#place.edges-1 do
-			for lr=-1,1 do	-- left, center, right
-				coroutine.yield(
-					i,		-- neighbor
-					lr == 0,	-- mark? not for the first bishop step
-					lr		-- state: left vs right
-				)
-			end
-		end
-	end)
-end
-		
-function Queen:moveStep(place, edgeindex, step, lr)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		if lr == 0 then	-- rook move
-			for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
-				coroutine.yield((edgeindex + ofs) % nedges)
-			end
-		else	-- bishop move
-			if step % 2 == 0 then
-				coroutine.yield(
-					(edgeindex + math.floor(nedges/2) - lr) % nedges,
-					false
-				)
-			else
-				coroutine.yield(
-					(edgeindex + math.floor(nedges/2) + lr) % nedges,
-					true
-				)
-			end
-		end
-	end)
-end
-
-
-King = Piece:subclass()
-
-King.name = 'king'
-
-function King:moveStart(place)
-	return coroutine.wrap(function()
-		for i=0,#place.edges-1 do
-			for lr=-1,1 do	-- left, center, right
-				coroutine.yield(
-					i,		-- neighbor
-					lr == 0,	-- mark? not for the first step
-					lr		-- state: left vs right
-				)
-			end
-		end
-	end)
-end
-		
-function King:moveStep(place, edgeindex, step, lr)
-	local nedges = #place.edges
-	return coroutine.wrap(function()
-		if lr ~= 0 then	-- bishop move
-			if step == 0 then
-				coroutine.yield(
-					(edgeindex + math.floor(nedges/2) - lr) % nedges,
-					false
-				)
-			elseif step == 1 then
-				coroutine.yield(
-					(edgeindex + math.floor(nedges/2) + lr) % nedges,
-					true
-				)
-			end
-		end
-	end)
-end
-
 
 
 local Player = class()
@@ -425,17 +156,17 @@ function TraditionalBoard:makePlaces()
 		for i=1,2 do
 			local player = Player(self.app)
 			local y = 7 * (i-1)
-			self:makePiece{class=Rook, player=player, place=self.places[1 + 0 + 8 * y]}
-			self:makePiece{class=Knight, player=player, place=self.places[1 + 1 + 8 * y]}
-			self:makePiece{class=Bishop, player=player, place=self.places[1 + 2 + 8 * y]}
-			self:makePiece{class=Queen, player=player, place=self.places[1 + 3 + 8 * y]}
-			self:makePiece{class=King, player=player, place=self.places[1 + 4 + 8 * y]}
-			self:makePiece{class=Bishop, player=player, place=self.places[1 + 5 + 8 * y]}
-			self:makePiece{class=Knight, player=player, place=self.places[1 + 6 + 8 * y]}
-			self:makePiece{class=Rook, player=player, place=self.places[1 + 7 + 8 * y]}
+			self:makePiece{class=Piece.Rook, player=player, place=self.places[1 + 0 + 8 * y]}
+			self:makePiece{class=Piece.Knight, player=player, place=self.places[1 + 1 + 8 * y]}
+			self:makePiece{class=Piece.Bishop, player=player, place=self.places[1 + 2 + 8 * y]}
+			self:makePiece{class=Piece.Queen, player=player, place=self.places[1 + 3 + 8 * y]}
+			self:makePiece{class=Piece.King, player=player, place=self.places[1 + 4 + 8 * y]}
+			self:makePiece{class=Piece.Bishop, player=player, place=self.places[1 + 5 + 8 * y]}
+			self:makePiece{class=Piece.Knight, player=player, place=self.places[1 + 6 + 8 * y]}
+			self:makePiece{class=Piece.Rook, player=player, place=self.places[1 + 7 + 8 * y]}
 			local y = 5 * (i-1) + 1
 			for x=0,7 do
-				self:makePiece{class=Pawn, player=player, place=self.places[1 + x + 8 * y]}
+				self:makePiece{class=Piece.Pawn, player=player, place=self.places[1 + x + 8 * y]}
 			end
 		end
 	end
@@ -485,25 +216,25 @@ function CubeBoard:makePlaces()
 			assert(player.index == i)
 			local places = placesPerSide[0][2*i-3]
 			
-			self:makePiece{class=Pawn, player=player, place=places[0][0]}
-			self:makePiece{class=Pawn, player=player, place=places[1][0]}
-			self:makePiece{class=Pawn, player=player, place=places[2][0]}
-			self:makePiece{class=Pawn, player=player, place=places[3][0]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[0][0]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[1][0]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[2][0]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[3][0]}
 
-			self:makePiece{class=Bishop, player=player, place=places[0][1]}
-			self:makePiece{class=Rook, player=player, place=places[1][1]}
-			self:makePiece{class=Queen, player=player, place=places[2][1]}
-			self:makePiece{class=Knight, player=player, place=places[3][1]}
+			self:makePiece{class=Piece.Bishop, player=player, place=places[0][1]}
+			self:makePiece{class=Piece.Rook, player=player, place=places[1][1]}
+			self:makePiece{class=Piece.Queen, player=player, place=places[2][1]}
+			self:makePiece{class=Piece.Knight, player=player, place=places[3][1]}
 			
-			self:makePiece{class=Knight, player=player, place=places[0][2]}
-			self:makePiece{class=King, player=player, place=places[1][2]}
-			self:makePiece{class=Rook, player=player, place=places[2][2]}
-			self:makePiece{class=Bishop, player=player, place=places[3][2]}
+			self:makePiece{class=Piece.Knight, player=player, place=places[0][2]}
+			self:makePiece{class=Piece.King, player=player, place=places[1][2]}
+			self:makePiece{class=Piece.Rook, player=player, place=places[2][2]}
+			self:makePiece{class=Piece.Bishop, player=player, place=places[3][2]}
 			
-			self:makePiece{class=Pawn, player=player, place=places[0][3]}
-			self:makePiece{class=Pawn, player=player, place=places[1][3]}
-			self:makePiece{class=Pawn, player=player, place=places[2][3]}
-			self:makePiece{class=Pawn, player=player, place=places[3][3]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[0][3]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[1][3]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[2][3]}
+			self:makePiece{class=Piece.Pawn, player=player, place=places[3][3]}
 		end
 	end
 end
