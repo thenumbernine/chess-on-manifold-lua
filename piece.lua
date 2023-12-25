@@ -203,8 +203,18 @@ end
 function Pawn:moveStart(place)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
+		local edgeindex = (self.dir - 1) % nedges
 		for lr=-1,1 do
-			coroutine.yield((self.dir-1) % nedges, true, lr)
+			if lr == 0 then
+				local neighbor = place.edges[edgeindex+1].place
+				if neighbor
+				and not neighbor.piece 
+				then -- ... unless we let pawns capture forward 1 tile ...
+					coroutine.yield(edgeindex, true, lr)
+				end
+			else
+				coroutine.yield(edgeindex, true, lr)
+			end
 		end
 	end)
 end
@@ -220,7 +230,7 @@ function Pawn:moveStep(place, edgeindex, step, lr)
 			local destedgeindex = (edgeindex + math.floor(nedges/2)) % nedges
 			local neighbor = place.edges[destedgeindex+1].place
 			if not neighbor then return end
-			if neighbor.piece then return end	-- ... unless we let pawns capture forward ...
+			if neighbor.piece then return end	-- ... unless we let pawns capture forward 2 tiles ...
 			coroutine.yield(destedgeindex)
 		else
 		-- diagonal attack...

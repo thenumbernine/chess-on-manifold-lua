@@ -210,7 +210,7 @@ function App:update()
 	end
 	if self.highlightedPlaces then
 		for _,place in ipairs(self.highlightedPlaces) do
-			place:drawHighlight(0,1,0, .3)
+			place:drawHighlight(0,1,0, .5)
 		end
 	end
 	
@@ -225,11 +225,23 @@ function App:update()
 			-- TODO draw arrow 
 			local pa = attack[1].place
 			local pb = attack[2].place
-			local delta = pb.center - pa.center
-			local right = delta:cross(pa.normal):normalize()
-			gl.glVertex3f((pa.center + .3 * right + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
+			local dir = (pb.center - pa.center):normalize()
+			local right = dir:cross(pa.normal):normalize()
+			
+			gl.glVertex3f((pa.center - .05 * right + .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center + .05 * right + .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + .05 * right - .3 * dir + .05 * pa.normal):unpack())
+			
+			gl.glVertex3f((pb.center + .05 * right - .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .05 * right - .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center - .05 * right + .3 * dir + .05 * pa.normal):unpack())
+			
+			gl.glVertex3f((pb.center + .15 * right - .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .15 * right - .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .15 * dir + .05 * pa.normal):unpack())
+			
+			--gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
+			--gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
 		end
 		gl.glEnd()
 	end
