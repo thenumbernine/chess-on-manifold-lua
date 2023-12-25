@@ -52,7 +52,7 @@ function Piece:draw()
 end
 
 -- returns a table-of-places of where the piece on this place can move
-function Piece:getMoves()
+function Piece:getMoves(friendlyFire)
 	local place = assert(self.place)	-- or just nil or {} for no-place?
 	--assert(Place:isa(place))
 	assert(place.piece == self)
@@ -70,15 +70,17 @@ function Piece:getMoves()
 		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
 		if draw or draw == nil then
 		
-			-- if we hit a friendly then stop movement ... always ... ?
-			if p.piece and p.piece.player == place.piece.player then
+			-- if we hit a friendly then stop movement 
+			if p.piece and p.piece.player == place.piece.player 
+			and not friendlyFire
+			then
 				return
 			end
 
 			moves:insert(p)
 			
 			-- same, unfriendly
-			if p.piece and p.piece.player ~= place.piece.player then
+			if p.piece then
 				return
 			end
 		end

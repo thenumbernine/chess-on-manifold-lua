@@ -231,9 +231,13 @@ function App:update()
 	end
 
 	if #self.board.attacks > 0 then
-		gl.glColor4f(1, 0, 0, .7)
 		gl.glBegin(gl.GL_TRIANGLES)
 		for _,attack in ipairs(self.board.attacks) do
+			if attack[3] then
+				gl.glColor4f(0, 1, 0, .7)
+			else
+				gl.glColor4f(1, 0, 0, .7)
+			end
 			local ax = .05
 			local ay = .45
 			local bx = .05
@@ -301,6 +305,30 @@ function App:updateGUI()
 			ig.igEndMenu()
 		end
 		if ig.igBeginMenu'View' then
+			if ig.igButton'Reset' then
+				self.view.pos:set(0, 0, self.viewDist)
+				self.view.orbit:set(0, 0, 0)
+				self.view.angle:set(0,0,0,1)
+			end
+			for j=1,2 do
+				for i=1,3 do
+					if i>1 then ig.igSameLine() end
+					if ig.igButton(
+						({'X', 'Y', 'Z'})[i]..({'-', '+'})[j]
+					) then
+						local quatf = require 'vec-ffi.quatf'
+						local rot = quatf()
+						rot.w = 90 * (2*j-1)
+						rot.s[i-1] = 1
+						-- how did I pick this for an API:
+						rot:fromAngleAxis(rot:unpack())
+						local dist = (self.view.pos - self.view.orbit):length()
+						self.view.angle = self.view.angle * rot
+						self.view.pos = self.view.angle:zAxis() * dist + self.view.orbit
+					end
+				end
+			end
+			ig.igSeparator()
 			ig.luatableCheckbox('Transparent Board', self, 'transparentBoard')
 			ig.igEndMenu()
 		end

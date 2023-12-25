@@ -131,15 +131,16 @@ function Board:refreshMoves()
 	for _,place in ipairs(self.places) do
 		local piece = place.piece
 		if piece then
-			piece.moves = piece:getMoves()
+			piece.moves = piece:getMoves(true)
 			for _,move in ipairs(piece.moves) do
 				local targetPiece = move.piece
-				if targetPiece 
-				and targetPiece.player ~= piece.player	-- .... or allow self-attacks ...
-				then
-					self.attacks:insert{piece, targetPiece}
+				if targetPiece then
+					local friendly = targetPiece.player == piece.player
+					self.attacks:insert{piece, targetPiece, friendly}
 				
-					if Piece.King:isa(targetPiece) then
+					if not friendly 
+					and Piece.King:isa(targetPiece) 
+					then
 						self.inCheck = true
 					end
 				end
