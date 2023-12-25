@@ -189,6 +189,8 @@ function App:update()
 						local piece = self.selectedPlace.piece
 						if piece then
 							self.highlightedPlaces = piece:getMoves()
+						
+							-- TODO if we're in check then filter out all moves that won't end the check
 						else
 							self.highlightedPlaces = nil
 						end
@@ -228,17 +230,17 @@ function App:update()
 			local dir = (pb.center - pa.center):normalize()
 			local right = dir:cross(pa.normal):normalize()
 			
-			gl.glVertex3f((pa.center - .05 * right + .3 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center + .05 * right + .3 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center + .05 * right - .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center - .05 * right + .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center + .05 * right + .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + .05 * right - .5 * dir + .05 * pa.normal):unpack())
 			
-			gl.glVertex3f((pb.center + .05 * right - .3 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .05 * right - .3 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center - .05 * right + .3 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + .05 * right - .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .05 * right - .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center - .05 * right + .5 * dir + .05 * pa.normal):unpack())
 			
-			gl.glVertex3f((pb.center + .15 * right - .3 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .15 * right - .3 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .15 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + .15 * right - .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .15 * right - .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .35 * dir + .05 * pa.normal):unpack())
 			
 			--gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
 			--gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
