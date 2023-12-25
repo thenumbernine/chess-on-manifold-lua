@@ -151,11 +151,12 @@ function Piece:draw()
 end
 
 function Piece:moveTo(to)
-	local from = self.piece
+	local from = self.place
 	if from then
 		from.piece = nil
 	end
 
+	-- capture piece
 	if to.piece then
 		to.piece.place = nil
 	end
@@ -222,17 +223,31 @@ function Pawn:getMoves()
 		function(place)
 			local nedges = #place.edges
 			return coroutine.wrap(function()
-				coroutine.yield((self.dir-1) % nedges)
+				for lr=-1,1 do
+					coroutine.yield((self.dir-1) % nedges, true, lr)
+				end
 			end)
 		end,
 		--step
-		function(place, edgeindex, step)
+		function(place, edgeindex, step, lr)
 			local nedges = #place.edges
 			return coroutine.wrap(function()
-				if self.moved then return end
-				-- if this is our starting square then ...
-				if step > 1 then return end
-				coroutine.yield((edgeindex + math.floor(nedges/2)) % nedges)
+				if lr == 0 then
+					if self.moved then return end
+					-- if this is our starting square then ...
+					if step > 1 then return end
+					coroutine.yield((edgeindex + math.floor(nedges/2)) % nedges)
+				else
+					if step > 1 then return end
+					local destedgeindex = (edgeindex + math.floor(nedges/2) + lr) % nedges
+					local neighbor = place.edges[destedgeindex+1].place
+					if neighbor and neighbor.piece and neighbor.piece.player ~= self.player then
+						coroutine.yield(
+							destedgeindex,
+							true
+						)
+					end
+				end
 			end)
 		end
 	)
@@ -834,6 +849,7 @@ function App:newGame(boardClass)
 			piece:initAfterPlacing()
 		end
 	end
+	self.turn = 1
 end
 
 local result = vec4ub()
@@ -851,6 +867,7 @@ function App:update()
 		if self.mouse.leftClick then
 			if self.selectedPlace
 			and self.selectedPlace.piece
+			and self.selectedPlace.piece.player.index == self.turn
 			and self.highlightedPlaces 
 			and self.highlightedPlaces:find(self.mouseOverPlace)
 			then
@@ -860,15 +877,19 @@ function App:update()
 				self.selectedPlace.piece:moveTo(
 					self.mouseOverPlace
 				)
+			
+				self.turn = self.turn % #self.players + 1
 			else
 				self.selectedPlace = self.mouseOverPlace
-				local piece = self.selectedPlace.piece
-				if piece 
-				and piece.getMoves
-				then
-					self.highlightedPlaces = piece:getMoves()
-				else
-					self.highlightedPlaces = nil
+				if self.selectedPlace then
+					local piece = self.selectedPlace.piece
+					if piece 
+					and piece.getMoves
+					then
+						self.highlightedPlaces = piece:getMoves()
+					else
+						self.highlightedPlaces = nil
+					end
 				end
 			end
 		end
@@ -879,13 +900,6 @@ function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.board:draw()
 	if self.selectedPlace then
---[[
-TODO
-only pick new highlighted places upon click
-then make click toggle show/hide
-then fix up the getMoves to be member of Piece
-then ... add real moving
-]]
 		if self.selectedPlace then
 			self.selectedPlace:drawHighlight(0,1,0)
 		end
