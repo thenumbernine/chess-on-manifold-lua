@@ -7,6 +7,7 @@ local vec4ub = require 'vec-ffi.vec4ub'
 local Image = require 'image'
 local GLTex2D = require 'gl.tex2d'
 local ig = require 'imgui'
+local sdl = require 'ffi.req' 'sdl'
 local NetCom = require 'netrefl.netcom'
 local ThreadManager = require 'threadmanager'
 
@@ -112,6 +113,8 @@ function App:newGame(boardGenerator)
 	self.players = table()
 	self.board = boardGenerator(self)
 	self.turn = 1
+	self.history = table()
+	self.historyIndex = nil
 	self.board:refreshMoves()
 end
 
@@ -135,6 +138,11 @@ function App:update()
 			and self.selectedMoves:find(self.mouseOverPlace)
 			then
 				self.selectedMoves = nil
+
+				self.history:insert(
+					self.board:clone()
+						:refreshMoves()
+				)
 
 				-- move the piece to that square
 				self.selectedPlace.piece:moveTo(
@@ -217,7 +225,12 @@ print'forecasting...'
 	gl.glClearColor(.5, .5, .5, 1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	
-	local drawBoard = self.forecastBoard or self.board
+	local drawBoard 
+	if self.historyIndex then
+		drawBoard = self.history[self.historyIndex]
+	else
+		drawBoard = self.forecastBoard or self.board
+	end
 	drawBoard:draw()
 
 	if #drawBoard.attacks > 0 then
@@ -273,6 +286,22 @@ print'forecasting...'
 
 	-- this does the gui drawing *and* does the gl matrix setup
 	App.super.update(self)
+end
+
+function App:event(event)
+	if event.type == sdl.SDL_KEYDOWN then
+		if event.key.keysym.sym == sdl.SDLK_LEFT then
+			self.historyIndex = self.historyIndex or #self.history + 1
+			self.historyIndex = math.clamp(self.historyIndex - 1, 1, #self.history + 1)
+			if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
+print('historyIndex', self.historyIndex)
+		elseif event.key.keysym.sym == sdl.SDLK_RIGHT then
+			self.historyIndex = self.historyIndex or #self.history + 1
+			self.historyIndex = math.clamp(self.historyIndex + 1, 1, #self.history + 1)
+			if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
+print('historyIndex', self.historyIndex)
+		end
+	end
 end
 
 function App:updateGUI()
@@ -331,6 +360,20 @@ function App:updateGUI()
 					end
 				end
 			end
+			
+			for i=1,2 do
+				if ig.igButton(({'<', '>'})[i]) then
+					local delta = 2*i-1
+					self.historyIndex = self.historyIndex or #self.history + 1
+					self.historyIndex = math.clamp(self.historyIndex + delta, 1, #self.history + 1)
+					if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
+print('historyIndex', self.historyIndex)
+				end
+				if i == 1 then
+					ig.igSameLine()
+				end
+			end
+
 			ig.igSeparator()
 			ig.luatableCheckbox('Transparent Board', self, 'transparentBoard')
 			ig.igEndMenu()

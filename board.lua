@@ -150,6 +150,7 @@ function Board:refreshMoves()
 			end
 		end
 	end
+	return self
 end
 
 -- TODO don't subclass dif board types, just use a generator
