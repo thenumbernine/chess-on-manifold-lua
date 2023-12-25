@@ -167,12 +167,13 @@ function App:update()
 			if self.selectedPlace
 			and self.selectedPlace.piece
 			and self.selectedPlace.piece.player.index == self.turn
-			and self.highlightedPlaces 
-			and self.highlightedPlaces:find(self.mouseOverPlace)
+			and self.mouseOverMoves 
+			and self.selectedMoves:find(self.mouseOverPlace)
 			then
-				self.highlightedPlaces = nil
-				-- move the piece to that square
+				self.mouseOverMoves = nil
+				self.selectedMoves = self.mouseOverMoves
 
+				-- move the piece to that square
 				self.selectedPlace.piece:moveTo(
 					self.mouseOverPlace
 				)
@@ -189,18 +190,54 @@ function App:update()
 					if self.selectedPlace then
 						local piece = self.selectedPlace.piece
 						if piece then
-							self.highlightedPlaces = piece:getMoves()
+							self.mouseOverMoves = piece:getMoves()
+							self.selectedMoves = self.mouseOverMoves
 						
 							-- TODO if we're in check then filter out all moves that won't end the check
 						else
-							self.highlightedPlaces = nil
+							self.mouseOverMoves = nil
+							self.selectedMoves = self.mouseOverMoves
 						end
 					end
 				else
-					self.highlightedPlaces = nil
+					self.mouseOverMoves = nil
+					self.selectedMoves = self.mouseOverMoves
+					
 					self.selectedPlace = nil
 				end
 			end
+		end
+
+		if self.selectedPlace
+		and self.selectedPlace.piece
+		and self.mouseOverPlace
+		and self.selectedMoves:find(self.mouseOverPlace)
+		then
+			-- ... then show things if the piece were to move ...
+			-- TODO push/pop entire board state?  instead of just the two pieces at these two squares?
+
+			local from = self.selectedPlace
+			local to = self.mouseOverPlace
+
+			local fromPiece = from.piece
+			local toPiece = to.piece
+
+			fromPiece:moveTo(to)
+
+			self.mouseOverMoves = fromPiece:getMoves()
+			self:refreshMoves()
+
+			fromPiece:moveTo(from)
+			-- TODO how about a Place:setPiece() function instead?
+			if toPiece then
+				toPiece:moveTo(to)
+			else
+				to.piece = nil
+			end
+		else
+			-- restore original piece highlights
+			self.mouseOverMoves = self.selectedMoves
+			self:refreshMoves()
 		end
 	end
 
@@ -212,8 +249,8 @@ function App:update()
 	if self.selectedPlace then
 		self.selectedPlace:drawHighlight(1,0,0, .3)
 	end
-	if self.highlightedPlaces then
-		for _,place in ipairs(self.highlightedPlaces) do
+	if self.mouseOverMoves then
+		for _,place in ipairs(self.mouseOverMoves) do
 			place:drawHighlight(0,1,0, .5)
 		end
 	end
