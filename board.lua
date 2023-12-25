@@ -159,17 +159,9 @@ function Board:clone()
 		srcPlace:clone(newBoard)
 	end
 
-	-- clone edges here
-	-- it goes much slower if you call newBoard:buildEdges()
+	-- shallow copy
 	for placeIndex,newPlace in ipairs(newBoard.places) do
-		newPlace.edges = self.places[placeIndex].edges:mapi(function(edge)
-			local newEdge = {
-				placeIndex = edge.placeIndex,
-				ex = edge.ex:clone(),
-				ey = edge.ey:clone(),
-			}
-			return newEdge
-		end)
+		newPlace.edges = self.places[placeIndex].edges
 	end
 
 	return newBoard
