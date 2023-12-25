@@ -111,8 +111,6 @@ function App:newGame(boardGenerator)
 	-- per-game
 	self.players = table()
 	self.board = boardGenerator(self)
-	self.board:makePieces()
-	self.board:initPieces()
 	self.turn = 1
 	self.board:refreshMoves()
 end

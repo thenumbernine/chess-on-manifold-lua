@@ -82,7 +82,7 @@ function Board:buildEdges()
 	end
 end
 
--- call this after :makePieces() or after :clone()
+-- call this last in generation or after :clone()
 -- ... to init the pawns
 function Board:initPieces()
 	-- run this after placing all pieces
@@ -179,27 +179,27 @@ function Board.Traditional(app)
 	end
 	board:buildEdges()
 
-	board.makePieces = function()
-		-- board makes players?  or app makes players?  hmm
-		-- board holds players?
-		assert(#app.players == 0)
-		for i=1,2 do
-			local player = Player(app)
-			local y = 7 * (i-1)
-			board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 0 + 8 * y]}
-			board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 1 + 8 * y]}
-			board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 2 + 8 * y]}
-			board:makePiece{class=Piece.Queen, player=player, place=board.places[1 + 3 + 8 * y]}
-			board:makePiece{class=Piece.King, player=player, place=board.places[1 + 4 + 8 * y]}
-			board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 5 + 8 * y]}
-			board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 6 + 8 * y]}
-			board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 7 + 8 * y]}
-			local y = 5 * (i-1) + 1
-			for x=0,7 do
-				board:makePiece{class=Piece.Pawn, player=player, place=board.places[1 + x + 8 * y]}
-			end
+	-- board makes players?  or app makes players?  hmm
+	-- board holds players?
+	assert(#app.players == 0)
+	for i=1,2 do
+		local player = Player(app)
+		local y = 7 * (i-1)
+		board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 0 + 8 * y]}
+		board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 1 + 8 * y]}
+		board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 2 + 8 * y]}
+		board:makePiece{class=Piece.Queen, player=player, place=board.places[1 + 3 + 8 * y]}
+		board:makePiece{class=Piece.King, player=player, place=board.places[1 + 4 + 8 * y]}
+		board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 5 + 8 * y]}
+		board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 6 + 8 * y]}
+		board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 7 + 8 * y]}
+		local y = 5 * (i-1) + 1
+		for x=0,7 do
+			board:makePiece{class=Piece.Pawn, player=player, place=board.places[1 + x + 8 * y]}
 		end
 	end
+	
+	board:initPieces()
 	
 	return board
 end
@@ -243,33 +243,33 @@ function Board.Cube(app)
 	end
 	board:buildEdges()
 	
-	board.makePieces = function()
-		for i=1,2 do
-			local player = Player(app)
-			assert(player.index == i)
-			local places = placesPerSide[0][2*i-3]
-			
-			board:makePiece{class=Piece.Pawn, player=player, place=places[0][0]}
-			board:makePiece{class=Piece.Pawn, player=player, place=places[1][0]}
-			board:makePiece{class=Piece.Pawn, player=player, place=places[2][0]}
-			board:makePiece{class=Piece.Pawn, player=player, place=places[3][0]}
+	for i=1,2 do
+		local player = Player(app)
+		assert(player.index == i)
+		local places = placesPerSide[0][2*i-3]
+		
+		board:makePiece{class=Piece.Pawn, player=player, place=places[0][0]}
+		board:makePiece{class=Piece.Pawn, player=player, place=places[1][0]}
+		board:makePiece{class=Piece.Pawn, player=player, place=places[2][0]}
+		board:makePiece{class=Piece.Pawn, player=player, place=places[3][0]}
 
-			board:makePiece{class=Piece.Bishop, player=player, place=places[0][1]}
-			board:makePiece{class=Piece.Rook, player=player, place=places[1][1]}
-			board:makePiece{class=Piece.Queen, player=player, place=places[2][1]}
-			board:makePiece{class=Piece.Knight, player=player, place=places[3][1]}
-			
-			board:makePiece{class=Piece.Knight, player=player, place=places[0][2]}
-			board:makePiece{class=Piece.King, player=player, place=places[1][2]}
-			board:makePiece{class=Piece.Rook, player=player, place=places[2][2]}
-			board:makePiece{class=Piece.Bishop, player=player, place=places[3][2]}
-			
-			board:makePiece{class=Piece.Pawn, player=player, place=places[0][3]}
-			board:makePiece{class=Piece.Pawn, player=player, place=places[1][3]}
-			board:makePiece{class=Piece.Pawn, player=player, place=places[2][3]}
-			board:makePiece{class=Piece.Pawn, player=player, place=places[3][3]}
-		end
+		board:makePiece{class=Piece.Bishop, player=player, place=places[0][1]}
+		board:makePiece{class=Piece.Rook, player=player, place=places[1][1]}
+		board:makePiece{class=Piece.Queen, player=player, place=places[2][1]}
+		board:makePiece{class=Piece.Knight, player=player, place=places[3][1]}
+		
+		board:makePiece{class=Piece.Knight, player=player, place=places[0][2]}
+		board:makePiece{class=Piece.King, player=player, place=places[1][2]}
+		board:makePiece{class=Piece.Rook, player=player, place=places[2][2]}
+		board:makePiece{class=Piece.Bishop, player=player, place=places[3][2]}
+		
+		board:makePiece{class=Piece.Pawn, player=player, place=places[0][3]}
+		board:makePiece{class=Piece.Pawn, player=player, place=places[1][3]}
+		board:makePiece{class=Piece.Pawn, player=player, place=places[2][3]}
+		board:makePiece{class=Piece.Pawn, player=player, place=places[3][3]}
 	end
+	
+	board:initPieces()
 	
 	return board
 end

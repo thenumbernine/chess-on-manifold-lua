@@ -178,7 +178,7 @@ end
 -- run this when we're done placing pieces
 function Pawn:initAfterPlacing()
 	-- initial dir should be the edge whose 'ey' basis vector closest aligns with the vector between kings
-	local thisKings = self.player.app.board.places:filter(function(place)
+	local thisKings = self.place.board.places:filter(function(place)
 		return place.piece
 		and Piece.King:isa(place.piece)
 		and place.piece.player == self.player
@@ -191,7 +191,7 @@ function Pawn:initAfterPlacing()
 	end
 	local thisKingPos = thisKings:sum() / #thisKings
 
-	local otherKings = self.player.app.board.places:filter(function(place)
+	local otherKings = self.place.board.places:filter(function(place)
 		return place.piece
 		and Piece.King:isa(place.piece)
 		and place.piece.player ~= self.player
