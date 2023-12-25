@@ -129,10 +129,18 @@ end
 
 -- calculate all moves for all pieces
 function App:refreshMoves()
+	self.attacks = table()
 	for _,place in ipairs(self.board.places) do
 		local piece = place.piece
 		if piece then
 			piece.moves = piece:getMoves()
+			for _,move in ipairs(piece.moves) do
+				if move.piece 
+				and move.piece.player ~= piece.player	-- .... or allow self-attacks ...
+				then
+					self.attacks:insert{piece, move.piece}
+				end
+			end
 		end
 	end
 end
@@ -192,17 +200,32 @@ function App:update()
 	self.board:draw()
 	
 	if self.selectedPlace then
-		if self.selectedPlace then
-			self.selectedPlace:drawHighlight(0,1,0, .3)
-		end
-		if self.highlightedPlaces then
-			for _,place in ipairs(self.highlightedPlaces) do
-				place:drawHighlight(1,0,0, .3)
-			end
+		self.selectedPlace:drawHighlight(1,0,0, .3)
+	end
+	if self.highlightedPlaces then
+		for _,place in ipairs(self.highlightedPlaces) do
+			place:drawHighlight(0,1,0, .3)
 		end
 	end
+	
 	if self.mouseOverPlace then
 		self.mouseOverPlace:drawHighlight(0,0,1, .3)
+	end
+
+	if #self.attacks > 0 then
+		gl.glColor4f(1, 0, 0, .7)
+		gl.glBegin(gl.GL_TRIANGLES)
+		for _,attack in ipairs(self.attacks) do
+			-- TODO draw arrow 
+			local pa = attack[1].place
+			local pb = attack[2].place
+			local delta = pb.center - pa.center
+			local right = delta:cross(pa.normal):normalize()
+			gl.glVertex3f((pa.center + .3 * right + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
+		end
+		gl.glEnd()
 	end
 
 	-- this does the gui drawing *and* does the gl matrix setup
