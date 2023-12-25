@@ -12,7 +12,7 @@ function Place:init(args)
 	self.index = #self.board.places
 	
 	self.color = args.color
-	self.vtxs = args.vtxs
+	self.vtxs = table(args.vtxs)
 	
 	local normal = vec3f(0,0,0)
 	local n = #self.vtxs
@@ -43,11 +43,23 @@ function Place:init(args)
 end
 
 function Place:clone(newBoard)
-	return Place{
+	local place = Place{
 		board = newBoard,
 		color = self.color,
 		vtxs = self.vtxs:mapi(function(v) return v:clone() end),
 	}
+	if self.piece then
+		--[[
+		place.piece = self.piece:clone()
+		--]]
+		-- [[
+		place.piece = getmetatable(self.piece){
+			player = self.piece.player,
+			place = place,
+		}
+		--]]
+	end
+	return place
 end
 
 function Place:drawLine()

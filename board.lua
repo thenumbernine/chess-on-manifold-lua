@@ -150,7 +150,7 @@ function Board:refreshMoves()
 end
 
 function Board:clone()
-	local newBoard = setmetatable({}, getmetatable(self))
+	local newBoard = getmetatable(self)(self.app)
 	for _,srcPlace in ipairs(self.places) do
 		srcPlace:clone(newBoard)
 	end
@@ -169,7 +169,7 @@ function TraditionalBoard:makePlaces()
 			Place{
 				board = self,
 				color = (i+j)%2 == 1 and vec3f(1,1,1) or vec3f(.2, .2, .2),
-				vtxs={
+				vtxs = {
 					vec3f(i-4, j-4, 0),
 					vec3f(i-3, j-4, 0),
 					vec3f(i-3, j-3, 0),

@@ -139,7 +139,6 @@ function App:update()
 			and self.selectedMoves:find(self.mouseOverPlace)
 			then
 				self.selectedMoves = nil
-				self.mouseOverMoves = nil
 
 				-- move the piece to that square
 				self.selectedPlace.piece:moveTo(
@@ -161,17 +160,14 @@ function App:update()
 						local piece = self.selectedPlace.piece
 						if piece then
 							self.selectedMoves = piece:getMoves()
-							self.mouseOverMoves = self.selectedMoves
 						
 							-- TODO if we're in check then filter out all moves that won't end the check
 						else
 							self.selectedMoves = nil
-							self.mouseOverMoves = nil
 						end
 					end
 				else
 					self.selectedMoves = nil
-					self.mouseOverMoves = nil
 					
 					self.selectedPlace = nil
 					self.selectedPlaceIndex = nil
@@ -184,15 +180,24 @@ function App:update()
 		and self.mouseOverPlace
 		and self.selectedMoves:find(self.mouseOverPlace)
 		then
---			self.pushBoard = self.board:clone()
+			if not self.forecastPlace
+			or self.forecastPlace ~= self.mouseOverPlace
+			then
+print'forecasting...'			
+				self.forecastPlace = self.mouseOverPlace
+				self.forecastBoard = self.board:clone()
+				
+				local forecastSelPiece = self.forecastBoard.places[self.selectedPlaceIndex].piece
+				if forecastSelPiece then
+					forecastSelPiece:moveTo(self.forecastBoard.places[self.mouseOverPlaceIndex])
+				end
+				self.forecastBoard:refreshMoves()
+			end
 		--[=[
 			-- ... then show things if the piece were to move ...
 			-- TODO push/pop entire board state?  instead of just the two pieces at these two squares?
 
 
-			self.pushBoard.places[self.mouseOverPlaceIndex]:setPiece(
-				self.pushBoard.places[self.selectedPlaceIndex].piece
-			)
 			
 			self.mouseOverMoves = fromPiece:getMoves()
 			self.board:refreshMoves()
@@ -206,8 +211,10 @@ function App:update()
 			end
 		--]=]
 		else
+			self.forecastBoard = nil
+			self.forecastPlace = nil
 			-- restore original piece highlights
-			self.mouseOverMoves = self.selectedMoves
+			--self.mouseOverMoves = self.selectedMoves
 			--self.board:refreshMoves()
 		end
 	end
@@ -215,24 +222,13 @@ function App:update()
 	-- draw
 	gl.glClearColor(.5, .5, .5, 1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-	self.board:draw()
 	
-	if self.selectedPlace then
-		self.selectedPlace:drawHighlight(1,0,0, .3)
-	end
-	if self.selectedMoves then
-		for _,place in ipairs(self.selectedMoves) do
-			place:drawHighlight(0,1,0, .5)
-		end
-	end
-	
-	if self.mouseOverPlace then
-		self.mouseOverPlace:drawHighlight(0,0,1, .3)
-	end
+	local drawBoard = self.forecastBoard or self.board
+	drawBoard:draw()
 
-	if #self.board.attacks > 0 then
+	if #drawBoard.attacks > 0 then
 		gl.glBegin(gl.GL_TRIANGLES)
-		for _,attack in ipairs(self.board.attacks) do
+		for _,attack in ipairs(drawBoard.attacks) do
 			if attack[3] then
 				gl.glColor4f(0, 1, 0, .7)
 			else
@@ -266,6 +262,19 @@ function App:update()
 			--gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
 		end
 		gl.glEnd()
+	end
+
+	if self.selectedPlace then
+		self.selectedPlace:drawHighlight(1,0,0, .3)
+	end
+	if self.selectedMoves then
+		for _,place in ipairs(self.selectedMoves) do
+			place:drawHighlight(0,1,0, .5)
+		end
+	end
+	
+	if self.mouseOverPlace then
+		self.mouseOverPlace:drawHighlight(0,0,1, .3)
 	end
 
 	-- this does the gui drawing *and* does the gl matrix setup
