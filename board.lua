@@ -149,6 +149,7 @@ function Board:refreshMoves()
 	end
 end
 
+-- TODO don't subclass dif board types, just use a generator
 function Board:clone()
 	local newBoard = getmetatable(self)(self.app)
 	for _,srcPlace in ipairs(self.places) do
@@ -159,14 +160,13 @@ function Board:clone()
 end
 
 
-local TraditionalBoard = Board:subclass()
-Board.Traditional = TraditionalBoard 
+function Board.Traditional(app)
+	local board = Board(app)
 
-function TraditionalBoard:makePlaces()
 	for j=0,7 do
 		for i=0,7 do
 			Place{
-				board = self,
+				board = board,
 				color = (i+j)%2 == 1 and vec3f(1,1,1) or vec3f(.2, .2, .2),
 				vtxs = {
 					vec3f(i-4, j-4, 0),
@@ -177,35 +177,36 @@ function TraditionalBoard:makePlaces()
 			}
 		end
 	end
+	board:buildEdges()
 
-	self.makePieces = function()
+	board.makePieces = function()
 		-- board makes players?  or app makes players?  hmm
 		-- board holds players?
-		assert(#self.app.players == 0)
+		assert(#app.players == 0)
 		for i=1,2 do
-			local player = Player(self.app)
+			local player = Player(app)
 			local y = 7 * (i-1)
-			self:makePiece{class=Piece.Rook, player=player, place=self.places[1 + 0 + 8 * y]}
-			self:makePiece{class=Piece.Knight, player=player, place=self.places[1 + 1 + 8 * y]}
-			self:makePiece{class=Piece.Bishop, player=player, place=self.places[1 + 2 + 8 * y]}
-			self:makePiece{class=Piece.Queen, player=player, place=self.places[1 + 3 + 8 * y]}
-			self:makePiece{class=Piece.King, player=player, place=self.places[1 + 4 + 8 * y]}
-			self:makePiece{class=Piece.Bishop, player=player, place=self.places[1 + 5 + 8 * y]}
-			self:makePiece{class=Piece.Knight, player=player, place=self.places[1 + 6 + 8 * y]}
-			self:makePiece{class=Piece.Rook, player=player, place=self.places[1 + 7 + 8 * y]}
+			board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 0 + 8 * y]}
+			board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 1 + 8 * y]}
+			board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 2 + 8 * y]}
+			board:makePiece{class=Piece.Queen, player=player, place=board.places[1 + 3 + 8 * y]}
+			board:makePiece{class=Piece.King, player=player, place=board.places[1 + 4 + 8 * y]}
+			board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 5 + 8 * y]}
+			board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 6 + 8 * y]}
+			board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 7 + 8 * y]}
 			local y = 5 * (i-1) + 1
 			for x=0,7 do
-				self:makePiece{class=Piece.Pawn, player=player, place=self.places[1 + x + 8 * y]}
+				board:makePiece{class=Piece.Pawn, player=player, place=board.places[1 + x + 8 * y]}
 			end
 		end
 	end
+	
+	return board
 end
 
 
-local CubeBoard = Board:subclass()
-Board.Cube = CubeBoard 
-
-function CubeBoard:makePlaces()
+function Board.Cube(app)
+	local board = Board(app)
 	local placesPerSide = {}
 	for a=0,2 do
 		placesPerSide[a] = {}
@@ -231,7 +232,7 @@ function CubeBoard:makePlaces()
 					}
 					if pm == -1 then vtxs = vtxs:reverse() end
 					local place = Place{
-						board = self,
+						board = board,
 						color = (i+j+a)%2 == 0 and vec3f(1,1,1) or vec3f(.2, .2, .2),
 						vtxs = vtxs,
 					}
@@ -240,33 +241,37 @@ function CubeBoard:makePlaces()
 			end
 		end
 	end
-	self.makePieces = function()
+	board:buildEdges()
+	
+	board.makePieces = function()
 		for i=1,2 do
-			local player = Player(self.app)
+			local player = Player(app)
 			assert(player.index == i)
 			local places = placesPerSide[0][2*i-3]
 			
-			self:makePiece{class=Piece.Pawn, player=player, place=places[0][0]}
-			self:makePiece{class=Piece.Pawn, player=player, place=places[1][0]}
-			self:makePiece{class=Piece.Pawn, player=player, place=places[2][0]}
-			self:makePiece{class=Piece.Pawn, player=player, place=places[3][0]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[0][0]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[1][0]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[2][0]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[3][0]}
 
-			self:makePiece{class=Piece.Bishop, player=player, place=places[0][1]}
-			self:makePiece{class=Piece.Rook, player=player, place=places[1][1]}
-			self:makePiece{class=Piece.Queen, player=player, place=places[2][1]}
-			self:makePiece{class=Piece.Knight, player=player, place=places[3][1]}
+			board:makePiece{class=Piece.Bishop, player=player, place=places[0][1]}
+			board:makePiece{class=Piece.Rook, player=player, place=places[1][1]}
+			board:makePiece{class=Piece.Queen, player=player, place=places[2][1]}
+			board:makePiece{class=Piece.Knight, player=player, place=places[3][1]}
 			
-			self:makePiece{class=Piece.Knight, player=player, place=places[0][2]}
-			self:makePiece{class=Piece.King, player=player, place=places[1][2]}
-			self:makePiece{class=Piece.Rook, player=player, place=places[2][2]}
-			self:makePiece{class=Piece.Bishop, player=player, place=places[3][2]}
+			board:makePiece{class=Piece.Knight, player=player, place=places[0][2]}
+			board:makePiece{class=Piece.King, player=player, place=places[1][2]}
+			board:makePiece{class=Piece.Rook, player=player, place=places[2][2]}
+			board:makePiece{class=Piece.Bishop, player=player, place=places[3][2]}
 			
-			self:makePiece{class=Piece.Pawn, player=player, place=places[0][3]}
-			self:makePiece{class=Piece.Pawn, player=player, place=places[1][3]}
-			self:makePiece{class=Piece.Pawn, player=player, place=places[2][3]}
-			self:makePiece{class=Piece.Pawn, player=player, place=places[3][3]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[0][3]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[1][3]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[2][3]}
+			board:makePiece{class=Piece.Pawn, player=player, place=places[3][3]}
 		end
 	end
+	
+	return board
 end
 
 return Board

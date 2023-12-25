@@ -105,14 +105,12 @@ function App:initGL()
 	self:newGame()
 end
 
-function App:newGame(boardClass)
-	--boardClass = boardClass or Board.Cube
-	boardClass = boardClass or Board.Traditional
+function App:newGame(boardGenerator)
+	--boardGenerator = boardGenerator or Board.Cube
+	boardGenerator = boardGenerator or Board.Traditional
 	-- per-game
 	self.players = table()
-	self.board = boardClass(self)
-	self.board:makePlaces()
-	self.board:buildEdges()
+	self.board = boardGenerator(self)
 	self.board:makePieces()
 	self.board:initPieces()
 	self.turn = 1
