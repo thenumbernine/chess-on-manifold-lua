@@ -183,6 +183,7 @@ function App:update()
 			else
 				if self.mouseOverPlace
 				and self.mouseOverPlace.piece
+				and self.mouseOverPlace ~= self.selectedPlace
 				then
 					self.selectedPlace = self.mouseOverPlace
 					if self.selectedPlace then
@@ -196,6 +197,7 @@ function App:update()
 						end
 					end
 				else
+					self.highlightedPlaces = nil
 					self.selectedPlace = nil
 				end
 			end
@@ -224,22 +226,27 @@ function App:update()
 		gl.glColor4f(1, 0, 0, .7)
 		gl.glBegin(gl.GL_TRIANGLES)
 		for _,attack in ipairs(self.attacks) do
+			local ax = .05
+			local ay = .45
+			local bx = .05
+			local by = .45
+
 			-- TODO draw arrow 
 			local pa = attack[1].place
 			local pb = attack[2].place
 			local dir = (pb.center - pa.center):normalize()
 			local right = dir:cross(pa.normal):normalize()
 			
-			gl.glVertex3f((pa.center - .05 * right + .5 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center + .05 * right + .5 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center + .05 * right - .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center + ax * right + ay * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + bx * right - by * dir + .05 * pa.normal):unpack())
 			
-			gl.glVertex3f((pb.center + .05 * right - .5 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .05 * right - .5 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center - .05 * right + .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + bx * right - by * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - bx * right - by * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
 			
-			gl.glVertex3f((pb.center + .15 * right - .5 * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .15 * right - .5 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + .15 * right - by * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - .15 * right - by * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pb.center - .35 * dir + .05 * pa.normal):unpack())
 			
 			--gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
