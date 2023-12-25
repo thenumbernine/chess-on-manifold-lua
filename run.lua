@@ -124,31 +124,7 @@ function App:newGame(boardClass)
 		end
 	end
 	self.turn = 1
-	self:refreshMoves()
-end
-
--- calculate all moves for all pieces
-function App:refreshMoves()
-	self.inCheck = false
-	self.attacks = table()
-	for _,place in ipairs(self.board.places) do
-		local piece = place.piece
-		if piece then
-			piece.moves = piece:getMoves()
-			for _,move in ipairs(piece.moves) do
-				local targetPiece = move.piece
-				if targetPiece 
-				and targetPiece.player ~= piece.player	-- .... or allow self-attacks ...
-				then
-					self.attacks:insert{piece, targetPiece}
-				
-					if Piece.King:isa(targetPiece) then
-						self.inCheck = true
-					end
-				end
-			end
-		end
-	end
+	self.board:refreshMoves()
 end
 
 local result = vec4ub()
@@ -162,16 +138,16 @@ function App:update()
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
 	
-		self.mouseOverPlace = self.board:getPlaceForRGB(result:unpack())
+		self.mouseOverPlace, self.mouseOverPlaceIndex = self.board:getPlaceForRGB(result:unpack())
 		if self.mouse.leftClick then
 			if self.selectedPlace
 			and self.selectedPlace.piece
 			and self.selectedPlace.piece.player.index == self.turn
-			and self.mouseOverMoves 
+			and self.selectedMoves 
 			and self.selectedMoves:find(self.mouseOverPlace)
 			then
+				self.selectedMoves = nil
 				self.mouseOverMoves = nil
-				self.selectedMoves = self.mouseOverMoves
 
 				-- move the piece to that square
 				self.selectedPlace.piece:moveTo(
@@ -180,30 +156,33 @@ function App:update()
 			
 				self.turn = self.turn % #self.players + 1
 
-				self:refreshMoves()
+				self.board:refreshMoves()
 			else
 				if self.mouseOverPlace
 				and self.mouseOverPlace.piece
 				and self.mouseOverPlace ~= self.selectedPlace
 				then
 					self.selectedPlace = self.mouseOverPlace
+					self.selectedPlaceIndex = self.mouseOverPlaceIndex
+
 					if self.selectedPlace then
 						local piece = self.selectedPlace.piece
 						if piece then
-							self.mouseOverMoves = piece:getMoves()
-							self.selectedMoves = self.mouseOverMoves
+							self.selectedMoves = piece:getMoves()
+							self.mouseOverMoves = self.selectedMoves
 						
 							-- TODO if we're in check then filter out all moves that won't end the check
 						else
+							self.selectedMoves = nil
 							self.mouseOverMoves = nil
-							self.selectedMoves = self.mouseOverMoves
 						end
 					end
 				else
+					self.selectedMoves = nil
 					self.mouseOverMoves = nil
-					self.selectedMoves = self.mouseOverMoves
 					
 					self.selectedPlace = nil
+					self.selectedPlaceIndex = nil
 				end
 			end
 		end
@@ -213,19 +192,18 @@ function App:update()
 		and self.mouseOverPlace
 		and self.selectedMoves:find(self.mouseOverPlace)
 		then
+--			self.pushBoard = self.board:clone()
+		--[=[
 			-- ... then show things if the piece were to move ...
 			-- TODO push/pop entire board state?  instead of just the two pieces at these two squares?
 
-			local from = self.selectedPlace
-			local to = self.mouseOverPlace
 
-			local fromPiece = from.piece
-			local toPiece = to.piece
-
-			fromPiece:moveTo(to)
-
+			self.pushBoard.places[self.mouseOverPlaceIndex]:setPiece(
+				self.pushBoard.places[self.selectedPlaceIndex].piece
+			)
+			
 			self.mouseOverMoves = fromPiece:getMoves()
-			self:refreshMoves()
+			self.board:refreshMoves()
 
 			fromPiece:moveTo(from)
 			-- TODO how about a Place:setPiece() function instead?
@@ -234,10 +212,11 @@ function App:update()
 			else
 				to.piece = nil
 			end
+		--]=]
 		else
 			-- restore original piece highlights
 			self.mouseOverMoves = self.selectedMoves
-			self:refreshMoves()
+			--self.board:refreshMoves()
 		end
 	end
 
@@ -249,8 +228,8 @@ function App:update()
 	if self.selectedPlace then
 		self.selectedPlace:drawHighlight(1,0,0, .3)
 	end
-	if self.mouseOverMoves then
-		for _,place in ipairs(self.mouseOverMoves) do
+	if self.selectedMoves then
+		for _,place in ipairs(self.selectedMoves) do
 			place:drawHighlight(0,1,0, .5)
 		end
 	end
@@ -259,14 +238,15 @@ function App:update()
 		self.mouseOverPlace:drawHighlight(0,0,1, .3)
 	end
 
-	if #self.attacks > 0 then
+	if #self.board.attacks > 0 then
 		gl.glColor4f(1, 0, 0, .7)
 		gl.glBegin(gl.GL_TRIANGLES)
-		for _,attack in ipairs(self.attacks) do
+		for _,attack in ipairs(self.board.attacks) do
 			local ax = .05
 			local ay = .45
 			local bx = .05
 			local by = .45
+			local arrowWidth = .2
 
 			-- TODO draw arrow 
 			local pa = attack[1].place
@@ -282,9 +262,9 @@ function App:update()
 			gl.glVertex3f((pb.center - bx * right - by * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
 			
-			gl.glVertex3f((pb.center + .15 * right - by * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .15 * right - by * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - .35 * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center + arrowWidth * right - by * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - arrowWidth * right - by * dir + .05 * pa.normal):unpack())
+			gl.glVertex3f((pb.center - (by - arrowWidth) * dir + .05 * pa.normal):unpack())
 			
 			--gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
 			--gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
@@ -333,7 +313,7 @@ function App:updateGUI()
 			ig.igEndMenu()
 		end
 		local str = '...  '..self.colors[self.turn].."'s turn"
-		if self.inCheck then
+		if self.board.inCheck then
 			str = str .. '... CHECK!'
 		end
 		if ig.igBeginMenu(str) then

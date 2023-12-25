@@ -107,8 +107,33 @@ function Board:getPlaceForRGB(r,g,b)
 		bit.lshift(g, 8),
 		bit.lshift(b, 16)
 	)
-	return self.placeForIndex[i]
+	return self.placeForIndex[i], i
 end
+
+-- calculate all moves for all pieces
+function Board:refreshMoves()
+	self.inCheck = false
+	self.attacks = table()
+	for _,place in ipairs(self.places) do
+		local piece = place.piece
+		if piece then
+			piece.moves = piece:getMoves()
+			for _,move in ipairs(piece.moves) do
+				local targetPiece = move.piece
+				if targetPiece 
+				and targetPiece.player ~= piece.player	-- .... or allow self-attacks ...
+				then
+					self.attacks:insert{piece, targetPiece}
+				
+					if Piece.King:isa(targetPiece) then
+						self.inCheck = true
+					end
+				end
+			end
+		end
+	end
+end
+
 
 
 local TraditionalBoard = Board:subclass()
