@@ -7,17 +7,19 @@ local Piece = class()
 
 function Piece:init(args)
 	self.player = assert(args.player)
-	self.place = assert(args.place)
-	if self.place.piece then
-		error("tried to place a "..self.name.." of team "..self.player.index.." at place #"..self.place.index.." but instead already found a "..self.place.piece.name.." of team "..self.place.piece.player.index.." there")
+	self.board = assert(args.board)
+	self.placeIndex = assert(args.placeIndex)
+	if self.board.places[self.placeIndex].piece then
+		error("tried to place a "..self.name.." of team "..self.player.index.." at place #"..self.placeIndex.." but instead already found a "..self.board.places[self.placeIndex].piece.name.." of team "..self.board.places[self.placeIndex].piece.player.index.." there")
 	end
-	self.place.piece = self
+	self.board.places[self.placeIndex].piece = self
 end
 
-function Piece:clone(newPlace)
+function Piece:clone(newBoard, newPlace)
 	local piece = getmetatable(self){
+		board = newBoard,
 		player = self.player,
-		place = newPlace,
+		placeIndex = newPlace.index,
 	}
 	return piece
 end
@@ -31,7 +33,7 @@ local uvs = table{
 function Piece:draw()
 	local player = self.player
 	local app = player.app
-	local place = self.place
+	local place = self.board.places[self.placeIndex]
 	local n = place.normal
 	local viewX = app.view.angle:xAxis()
 	local viewY = app.view.angle:yAxis()
@@ -61,7 +63,7 @@ end
 
 -- returns a table-of-places of where the piece on this place can move
 function Piece:getMoves(friendlyFire)
-	local place = assert(self.place)	-- or just nil or {} for no-place?
+	local place = assert(self.board.places[self.placeIndex])	-- or just nil or {} for no-place?
 	--assert(Place:isa(place))
 	assert(place.piece == self)
 
@@ -96,14 +98,14 @@ function Piece:getMoves(friendlyFire)
 		-- using edges instead of projective basis
 		-- find 'p's neighborhood entry that points back to 'srcp'
 		local i,nbhd = p.edges:find(nil, function(nbhd)
-			return nbhd.place == srcp
+			return self.board.places[nbhd.placeIndex] == srcp
 		end)
 if not nbhd then
 	print("came from", srcp.center)
 	print("at", p.center)
 	print("with edges")
 	for _,n in ipairs(p.edges) do
-		print('', n.place.center)
+		print('', self.board.places[n.placeIndex].center)
 	end
 end
 		assert(nbhd)
@@ -118,8 +120,8 @@ end
 		for j, draw in self:moveStep(p, i-1, step, state) do
 			-- now pick the piece
 			local n = p.edges[j+1]
-			if n and n.place then
-				iterate(draw, n.place, p, step+1, already, state)
+			if n and self.board.places[n.placeIndex] then
+				iterate(draw, self.board.places[n.placeIndex], p, step+1, already, state)
 			end
 		end
 	end
@@ -129,12 +131,14 @@ end
 	-- 2nd: mark or not
 	-- 3rd: is forwarded as state variables to 'moveStep'
 	for j, draw, state in self:moveStart(place) do
-		local n = place.edges[j+1]
-		if n and n.place then
-			-- make a basis between 'place' and neighbor 'n'
-			local already = {}
-			already[place] = true
-			iterate(draw, n.place, place, 1, already, state)
+		local edge = place.edges[j+1]
+		if edge then
+			local nextplace = self.board.places[edge.placeIndex]
+			if nextplace then
+				local already = {}
+				already[place] = true
+				iterate(draw, nextplace, place, 1, already, state)
+			end
 		end
 	end
 
@@ -143,18 +147,18 @@ end
 
 
 function Piece:moveTo(to)
-	local from = self.place
+	local from = self.board.places[self.placeIndex]
 	if from then
 		from.piece = nil
 	end
 
 	-- capture piece
 	if to.piece then
-		to.piece.place = nil
+		to.piece.placeIndex = nil
 	end
 	to.piece = self
 	if to.piece then
-		to.piece.place = to
+		to.piece.placeIndex = to.index
 	end
 end
 
@@ -178,7 +182,7 @@ end
 -- run this when we're done placing pieces
 function Pawn:initAfterPlacing()
 	-- initial dir should be the edge whose 'ey' basis vector closest aligns with the vector between kings
-	local thisKings = self.place.board.places:filter(function(place)
+	local thisKings = self.board.places:filter(function(place)
 		return place.piece
 		and Piece.King:isa(place.piece)
 		and place.piece.player == self.player
@@ -191,7 +195,7 @@ function Pawn:initAfterPlacing()
 	end
 	local thisKingPos = thisKings:sum() / #thisKings
 
-	local otherKings = self.place.board.places:filter(function(place)
+	local otherKings = self.board.places:filter(function(place)
 		return place.piece
 		and Piece.King:isa(place.piece)
 		and place.piece.player ~= self.player
@@ -202,18 +206,21 @@ function Pawn:initAfterPlacing()
 
 	local dirToOtherKing = (otherKingPos - thisKingPos):normalize()
 --print('dirToOtherKing', dirToOtherKing)
-	self.dir = select(2, self.place.edges:mapi(function(edge)
+	self.dir = select(2, self.board.places[self.placeIndex].edges:mapi(function(edge)
 		--[[ use edge basis ...
 		-- ... but what if the edge basis is in the perpendicular plane?
 		return (edge.ey:dot(dirToOtherKing))
 		--]]
 		-- [[ use line to neighboring tile
-		if not edge.place then return -math.huge end
-		return (edge.place.center - self.place.center):normalize():dot(dirToOtherKing)
+		if not edge.placeIndex then return -math.huge end
+		return (
+			self.board.places[edge.placeIndex].center 
+			- self.board.places[self.placeIndex].center
+		):normalize():dot(dirToOtherKing)
 		--]]
 	end):sup())
 	assert(self.dir)
---	local edge = self.place.edges[self.dir]
+--	local edge = self.board.places[self.placeIndex].edges[self.dir]
 --print('dir', edge.ex, edge.ey)
 end
 
@@ -222,7 +229,7 @@ function Pawn:moveStart(place)
 	return coroutine.wrap(function()
 		for lr=-1,1 do
 			if lr == 0 then
-				local neighbor = place.edges[self.dir].place
+				local neighbor = self.board.places[place.edges[self.dir].placeIndex]
 				if neighbor
 				and not neighbor.piece 
 				then -- ... unless we let pawns capture forward 1 tile ...
@@ -244,7 +251,7 @@ function Pawn:moveStep(place, edgeindex, step, lr)
 			-- if this is our starting square then ...
 			if step > 1 then return end
 			local destedgeindex = (edgeindex + math.floor(nedges/2)) % nedges
-			local neighbor = place.edges[destedgeindex+1].place
+			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
 			if not neighbor then return end
 			if neighbor.piece then return end	-- ... unless we let pawns capture forward 2 tiles ...
 			coroutine.yield(destedgeindex)
@@ -252,7 +259,7 @@ function Pawn:moveStep(place, edgeindex, step, lr)
 		-- diagonal attack...
 			if step > 1 then return end
 			local destedgeindex = (edgeindex + math.floor(nedges/2) + lr) % nedges
-			local neighbor = place.edges[destedgeindex+1].place
+			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
 			if not neighbor then return end
 			if neighbor.piece then
 				if neighbor.piece.player ~= self.player then -- ... or if we're allowing self-capture ...

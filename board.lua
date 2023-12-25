@@ -17,6 +17,7 @@ function Board:makePiece(args)
 	local cl = assert(args.class)
 	if not self.app.enablePieces[cl.name] then return end
 	args.class = nil
+	args.board = self
 	cl(args)
 end
 
@@ -40,6 +41,7 @@ function Board:buildEdges()
 			local o2 = o % #pa.vtxs + 1
 
 			local neighbor
+			local neighborIndex
 			for b,pb in ipairs(self.places) do
 				if pb ~= pa then
 					for j=1,#pb.vtxs do
@@ -51,6 +53,7 @@ function Board:buildEdges()
 							pb.vtxs[j],
 							pb.vtxs[j2])
 						then
+							neighborIndex = b
 							neighbor = pb
 							break
 						end
@@ -58,7 +61,7 @@ function Board:buildEdges()
 				end
 			end
 			local edge = {
-				place = neighbor,
+				placeIndex = neighborIndex,
 			}
 			edge.ex = (pa.vtxs[i] - pa.vtxs[i2]):normalize()
 			-- edge.ez = pa.normal
@@ -68,8 +71,8 @@ function Board:buildEdges()
 		--[[
 		io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
 		for i=1,#pa.edges do
-			local pb = pa.edges[i].place
-			local pc = pa.edges[(i % #pa.edges)+1].place
+			local pb = self.places[pa.edges[i].placeIndex]
+			local pc = self.places[pa.edges[(i % #pa.edges)+1].placeIndex]
 			if pb and pc then
 				local n2 = (pb.center - pa.center):cross(pc.center - pb.center)
 				-- should be positive ...
@@ -155,7 +158,20 @@ function Board:clone()
 	for _,srcPlace in ipairs(self.places) do
 		srcPlace:clone(newBoard)
 	end
-	newBoard:buildEdges()
+
+	-- clone edges here
+	-- it goes much slower if you call newBoard:buildEdges()
+	for placeIndex,newPlace in ipairs(newBoard.places) do
+		newPlace.edges = self.places[placeIndex].edges:mapi(function(edge)
+			local newEdge = {
+				placeIndex = edge.placeIndex,
+				ex = edge.ex:clone(),
+				ey = edge.ey:clone(),
+			}
+			return newEdge
+		end)
+	end
+
 	return newBoard
 end
 
@@ -185,17 +201,17 @@ function Board.Traditional(app)
 	for i=1,2 do
 		local player = Player(app)
 		local y = 7 * (i-1)
-		board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 0 + 8 * y]}
-		board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 1 + 8 * y]}
-		board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 2 + 8 * y]}
-		board:makePiece{class=Piece.Queen, player=player, place=board.places[1 + 3 + 8 * y]}
-		board:makePiece{class=Piece.King, player=player, place=board.places[1 + 4 + 8 * y]}
-		board:makePiece{class=Piece.Bishop, player=player, place=board.places[1 + 5 + 8 * y]}
-		board:makePiece{class=Piece.Knight, player=player, place=board.places[1 + 6 + 8 * y]}
-		board:makePiece{class=Piece.Rook, player=player, place=board.places[1 + 7 + 8 * y]}
+		board:makePiece{class=Piece.Rook, player=player, placeIndex=1 + 0 + 8 * y}
+		board:makePiece{class=Piece.Knight, player=player, placeIndex=1 + 1 + 8 * y}
+		board:makePiece{class=Piece.Bishop, player=player, placeIndex=1 + 2 + 8 * y}
+		board:makePiece{class=Piece.Queen, player=player, placeIndex=1 + 3 + 8 * y}
+		board:makePiece{class=Piece.King, player=player, placeIndex=1 + 4 + 8 * y}
+		board:makePiece{class=Piece.Bishop, player=player, placeIndex=1 + 5 + 8 * y}
+		board:makePiece{class=Piece.Knight, player=player, placeIndex=1 + 6 + 8 * y}
+		board:makePiece{class=Piece.Rook, player=player, placeIndex=1 + 7 + 8 * y}
 		local y = 5 * (i-1) + 1
 		for x=0,7 do
-			board:makePiece{class=Piece.Pawn, player=player, place=board.places[1 + x + 8 * y]}
+			board:makePiece{class=Piece.Pawn, player=player, placeIndex = 1 + x + 8 * y}
 		end
 	end
 	
@@ -248,25 +264,25 @@ function Board.Cube(app)
 		assert(player.index == i)
 		local places = placesPerSide[0][2*i-3]
 		
-		board:makePiece{class=Piece.Pawn, player=player, place=places[0][0]}
-		board:makePiece{class=Piece.Pawn, player=player, place=places[1][0]}
-		board:makePiece{class=Piece.Pawn, player=player, place=places[2][0]}
-		board:makePiece{class=Piece.Pawn, player=player, place=places[3][0]}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[0][0].index}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[1][0].index}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[2][0].index}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[3][0].index}
 
-		board:makePiece{class=Piece.Bishop, player=player, place=places[0][1]}
-		board:makePiece{class=Piece.Rook, player=player, place=places[1][1]}
-		board:makePiece{class=Piece.Queen, player=player, place=places[2][1]}
-		board:makePiece{class=Piece.Knight, player=player, place=places[3][1]}
+		board:makePiece{class=Piece.Bishop, player=player, placeIndex=places[0][1].index}
+		board:makePiece{class=Piece.Rook, player=player, placeIndex=places[1][1].index}
+		board:makePiece{class=Piece.Queen, player=player, placeIndex=places[2][1].index}
+		board:makePiece{class=Piece.Knight, player=player, placeIndex=places[3][1].index}
 		
-		board:makePiece{class=Piece.Knight, player=player, place=places[0][2]}
-		board:makePiece{class=Piece.King, player=player, place=places[1][2]}
-		board:makePiece{class=Piece.Rook, player=player, place=places[2][2]}
-		board:makePiece{class=Piece.Bishop, player=player, place=places[3][2]}
+		board:makePiece{class=Piece.Knight, player=player, placeIndex=places[0][2].index}
+		board:makePiece{class=Piece.King, player=player, placeIndex=places[1][2].index}
+		board:makePiece{class=Piece.Rook, player=player, placeIndex=places[2][2].index}
+		board:makePiece{class=Piece.Bishop, player=player, placeIndex=places[3][2].index}
 		
-		board:makePiece{class=Piece.Pawn, player=player, place=places[0][3]}
-		board:makePiece{class=Piece.Pawn, player=player, place=places[1][3]}
-		board:makePiece{class=Piece.Pawn, player=player, place=places[2][3]}
-		board:makePiece{class=Piece.Pawn, player=player, place=places[3][3]}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[0][3].index}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[1][3].index}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[2][3].index}
+		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[3][3].index}
 	end
 	
 	board:initPieces()

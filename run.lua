@@ -235,8 +235,8 @@ print'forecasting...'
 			local arrowWidth = .2
 
 			-- TODO draw arrow 
-			local pa = attack[1].place
-			local pb = attack[2].place
+			local pa = drawBoard.places[attack[1].placeIndex]
+			local pb = drawBoard.places[attack[2].placeIndex]
 			local dir = (pb.center - pa.center):normalize()
 			local right = dir:cross(pa.normal):normalize()
 			
