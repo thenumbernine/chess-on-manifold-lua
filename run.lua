@@ -9,9 +9,8 @@ local quatf = require 'vec-ffi.quatf'
 local Image = require 'image'
 local GLTex2D = require 'gl.tex2d'
 local ig = require 'imgui'
-
-local App = require 'imguiapp.withorbit'()
-App.title = 'Chess or something'
+local NetCom = require 'netrefl.netcom'
+local ThreadManager = require 'threadmanager'
 
 local Place = class()
 
@@ -198,7 +197,7 @@ function Pawn:initAfterPlacing()
 	local otherKingPos = otherKings:sum() / #otherKings
 
 	local dirToOtherKing = (otherKingPos - thisKingPos):normalize()
-print('dirToOtherKing', dirToOtherKing)
+--print('dirToOtherKing', dirToOtherKing)
 	self.dir = select(2, self.place.edges:mapi(function(edge)
 		--[[ use edge basis ...
 		-- ... but what if the edge basis is in the perpendicular plane?
@@ -210,8 +209,8 @@ print('dirToOtherKing', dirToOtherKing)
 		--]]
 	end):sup())
 	assert(self.dir)
-	local edge = self.place.edges[self.dir]
-print('dir', edge.ex, edge.ey)
+--	local edge = self.place.edges[self.dir]
+--print('dir', edge.ex, edge.ey)
 end
 
 -- TODO ... pawns ... which way is up?
@@ -241,11 +240,17 @@ function Pawn:getMoves()
 					if step > 1 then return end
 					local destedgeindex = (edgeindex + math.floor(nedges/2) + lr) % nedges
 					local neighbor = place.edges[destedgeindex+1].place
-					if neighbor and neighbor.piece and neighbor.piece.player ~= self.player then
-						coroutine.yield(
-							destedgeindex,
-							true
-						)
+					if not neighbor then return end
+					if neighbor.piece then
+						if neighbor.piece.player ~= self.player then -- ... or if we're allowing self-capture ...
+							coroutine.yield(
+								destedgeindex,
+								true
+							)
+						end
+					else
+						-- else - 
+						-- TODO if no piece - then look if a pawn just hopped over this last turn ... if so then allow en piss ant
 					end
 				end
 			end)
@@ -530,7 +535,8 @@ function Board:buildEdges()
 			edge.ey = pa.normal:cross(edge.ex):normalize()
 			pa.edges:insert(edge)
 		end
-io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
+		--[[
+		io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
 		for i=1,#pa.edges do
 			local pb = pa.edges[i].place
 			local pc = pa.edges[(i % #pa.edges)+1].place
@@ -541,7 +547,8 @@ io.write('nbhd', '\t', pa.index, '\t', #pa.edges)
 				io.write('\t', dot)
 			end
 		end
-print()	
+		print()	
+		--]]
 	end
 end
 
@@ -763,6 +770,17 @@ function CubeBoard:makePlaces()
 	end
 end
 
+local App = require 'imguiapp.withorbit'()
+
+App.title = 'Chess or something'
+App.viewDist = 5
+
+-- need as many as is in app.players[]
+App.colors = table{
+	'white',
+	'black',
+}
+
 function App:initGL()
 	App.super.initGL(self)
 
@@ -786,10 +804,7 @@ function App:initGL()
 			end
 		end
 	end
-	for y,color in ipairs{
-		'white',
-		'black',
-	} do
+	for y,color in ipairs(self.colors) do
 		self.pieceTexs[color] = {}
 		self.pieceTexs[y] = self.pieceTexs[color]
 		for x,piece in ipairs{
@@ -808,8 +823,9 @@ function App:initGL()
 			}
 			local tex = GLTex2D{
 				image = image,
-				minFilter = gl.GL_NEAREST,
+				minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 				magFilter = gl.GL_LINEAR,
+				generateMipmap = true,
 			}
 			tex.image = image
 			tex.image:save(piece..'-'..color..'.png')
@@ -819,6 +835,11 @@ function App:initGL()
 	
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_DEPTH_TEST)
+
+	self.netcom = NetCom()
+	self.address = 'localhost'
+	self.port = 12345
+	self.threads = ThreadManager()
 
 	self.enablePieces = {
 		king = true,	-- always
@@ -880,16 +901,22 @@ function App:update()
 			
 				self.turn = self.turn % #self.players + 1
 			else
-				self.selectedPlace = self.mouseOverPlace
-				if self.selectedPlace then
-					local piece = self.selectedPlace.piece
-					if piece 
-					and piece.getMoves
-					then
-						self.highlightedPlaces = piece:getMoves()
-					else
-						self.highlightedPlaces = nil
+				if self.mouseOverPlace
+				and self.mouseOverPlace.piece
+				then
+					self.selectedPlace = self.mouseOverPlace
+					if self.selectedPlace then
+						local piece = self.selectedPlace.piece
+						if piece 
+						and piece.getMoves
+						then
+							self.highlightedPlaces = piece:getMoves()
+						else
+							self.highlightedPlaces = nil
+						end
 					end
+				else
+					self.selectedPlace = nil
 				end
 			end
 		end
@@ -918,11 +945,21 @@ function App:updateGUI()
 	local mesh = self.mesh
 	if ig.igBeginMainMenuBar() then
 		if ig.igBeginMenu'File' then
+			ig.igSeparator()
+			ig.igText'Local'
 			if ig.igButton'New Game: Traditional' then
 				self:newGame(TraditionalBoard)
 			end
 			if ig.igButton'New Game: Cube' then
 				self:newGame(CubeBoard)
+			end
+			ig.igSeparator()
+			ig.igText'Remote'
+			if ig.igButton'Listen' then
+				self.connectPopupOpen = 'listen'
+			end
+			if ig.igButton'Connect' then
+				self.connectPopupOpen = 'connect'
 			end
 			ig.igEndMenu()
 		end
@@ -934,7 +971,45 @@ function App:updateGUI()
 			ig.luatableCheckbox('queens', self.enablePieces, 'queen')
 			ig.igEndMenu()
 		end
+		if ig.igBeginMenu('...  '..self.colors[self.turn].."'s turn") then
+			ig.igEndMenu()
+		end
 		ig.igEndMainMenuBar()
+	end
+	
+	if self.connectPopupOpen then
+		ig.igPushID_Str'Connect Window'
+		if ig.igBegin(self.connectPopupOpen) then
+			if self.connectPopupOpen == 'connect' then
+				ig.luatableInputText('address', self, 'address')
+			end
+			ig.luatableInputText('port', self, 'port')
+			if ig.igButton'Go' then
+				self.connectWaiting = true
+				self.clientConn, self.server = self.netcom:start{
+					port = self.port,
+					threads = self.threads,
+					addr = self.connectPopupOpen == 'connect' and self.address or nil,
+					onConnect = function()
+print'connected!'						
+						self.connectWaiting = nil
+						-- TODO start game ...
+					end,
+				}
+				-- TODO popup 'waiting' ...
+			end
+		end
+		ig.igEnd()
+		ig.igPopID()
+	end
+	if self.connectWaiting then
+		if ig.igBegin('Waiting...') then
+			if ig.igButton'Cancel' then
+				-- TODO cancel the connect
+				self.connectWaiting = nil
+			end
+			ig.igEnd()
+		end
 	end
 end
 
