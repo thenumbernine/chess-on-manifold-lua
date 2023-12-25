@@ -14,6 +14,14 @@ function Piece:init(args)
 	self.place.piece = self
 end
 
+function Piece:clone(newPlace)
+	local piece = getmetatable(self){
+		player = self.player,
+		place = newPlace,
+	}
+	return piece
+end
+
 local uvs = table{
 	vec3f(0,0,0),
 	vec3f(0,1,0),
@@ -156,6 +164,13 @@ local Pawn = Piece:subclass()
 Piece.Pawn = Pawn
 
 Pawn.name = 'pawn'
+
+function Pawn:clone(...)
+	local piece = Pawn.super.clone(self, ...)
+	piece.dir = self.dir
+	piece.moved = self.moved
+	return piece
+end
 
 -- ... pawns ... which way is up?
 -- geodesic from king to king?  closest to the pawn?

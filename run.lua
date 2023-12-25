@@ -196,8 +196,6 @@ print'forecasting...'
 		--[=[
 			-- ... then show things if the piece were to move ...
 			-- TODO push/pop entire board state?  instead of just the two pieces at these two squares?
-
-
 			
 			self.mouseOverMoves = fromPiece:getMoves()
 			self.board:refreshMoves()

@@ -155,7 +155,6 @@ function Board:clone()
 		srcPlace:clone(newBoard)
 	end
 	newBoard:buildEdges()
-	newBoard:initPieces()
 	return newBoard
 end
 

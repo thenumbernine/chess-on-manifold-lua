@@ -49,15 +49,7 @@ function Place:clone(newBoard)
 		vtxs = self.vtxs:mapi(function(v) return v:clone() end),
 	}
 	if self.piece then
-		--[[
-		place.piece = self.piece:clone()
-		--]]
-		-- [[
-		place.piece = getmetatable(self.piece){
-			player = self.piece.player,
-			place = place,
-		}
-		--]]
+		place.piece = self.piece:clone(place)
 	end
 	return place
 end
