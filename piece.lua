@@ -203,17 +203,16 @@ end
 function Pawn:moveStart(place)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
-		local edgeindex = (self.dir - 1) % nedges
 		for lr=-1,1 do
 			if lr == 0 then
-				local neighbor = place.edges[edgeindex+1].place
+				local neighbor = place.edges[self.dir].place
 				if neighbor
 				and not neighbor.piece 
 				then -- ... unless we let pawns capture forward 1 tile ...
-					coroutine.yield(edgeindex, true, lr)
+					coroutine.yield(self.dir-1, true, lr)
 				end
 			else
-				coroutine.yield(edgeindex, true, lr)
+				coroutine.yield(self.dir-1, false, lr)
 			end
 		end
 	end)
