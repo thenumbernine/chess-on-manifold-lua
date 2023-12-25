@@ -149,6 +149,89 @@ function Piece:draw()
 	gl.glDisable(gl.GL_ALPHA_TEST)
 end
 
+-- returns a table-of-places of where the piece on this place can move
+-- TODO just merge this into Piece:getMoves
+-- and then change 'startmove' and 'nextmove' to Piece member function
+function Piece:getMovesBase(startmove, nextmove)
+	local place = assert(self.place)	-- or just nil or {} for no-place?
+	assert(Place:isa(place))
+	assert(place.piece == self)
+
+	local moves = table()
+
+	-- now traverse the manifold, stepping in each direction
+	local function iterate(draw, p, srcp, step, already, state)
+		assert(Place:isa(p))
+		assert(Place:isa(srcp))
+		if already[p] then return end
+		already[p] = true
+	
+		-- TODO "draw" should be "checkTakePiece" or something
+		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
+		if draw or draw == nil then
+		
+			-- if we hit a friendly then stop movement ... always ... ?
+			if p.piece and p.piece.player == place.piece.player then
+				return
+			end
+
+			moves:insert(p)
+			
+			-- same, unfriendly
+			if p.piece and p.piece.player ~= place.piece.player then
+				return
+			end
+		end
+
+		-- using edges instead of projective basis
+		-- find 'p's neighborhood entry that points back to 'srcp'
+		local i,nbhd = p.edges:find(nil, function(nbhd)
+			return nbhd.place == srcp
+		end)
+if not nbhd then
+	print("came from", srcp.center)
+	print("at", p.center)
+	print("with edges")
+	for _,n in ipairs(p.edges) do
+		print('', n.place.center)
+	end
+end
+		assert(nbhd)
+
+		-- now each piece should pick the next neighbor based on the prev neighbor and the neighborhood ...
+		-- cycle  around thema nd see if the piece should move in that direction
+		-- ...
+		-- hmm, for modulo math's sake, 0-based indexes would be very nice here ...
+		-- yields:
+		-- 1st: neighborhood index
+		-- 2nd: mark or not
+		for j, draw in nextmove(p, i-1, step, state) do
+			-- now pick the piece
+			local n = p.edges[j+1]
+			if n and n.place then
+				iterate(draw, n.place, p, step+1, already, state)
+			end
+		end
+	end
+	
+	-- yields:
+	-- 1st: neighborhood index (0-based)
+	-- 2nd: mark or not
+	-- 3rd: is forwarded as state variables to 'nextmove'
+	for j, draw, state in startmove(place) do
+		local n = place.edges[j+1]
+		if n and n.place then
+			-- make a basis between 'place' and neighbor 'n'
+			local already = {}
+			already[place] = true
+			iterate(draw, n.place, place, 1, already, state)
+		end
+	end
+
+	return moves
+end
+
+
 function Piece:moveTo(to)
 	local from = self.place
 	if from then
@@ -217,7 +300,7 @@ end
 -- geodesic from king to king?  closest to the pawn?
 -- this also means  store state info for when the piece is created ... this is only true for pawns
 function Pawn:getMoves()
-	return self.player.app.board:getMoves(self.place,
+	return self:getMovesBase(
 		--start
 		function(place)
 			local nedges = #place.edges
@@ -268,7 +351,7 @@ local Bishop = Piece:subclass()
 Bishop.name = 'bishop'
 
 function Bishop:getMoves()
-	return self.player.app.board:getMoves(self.place, 
+	return self:getMovesBase(
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -309,7 +392,7 @@ local Knight = Piece:subclass()
 Knight.name = 'knight'
 
 function Knight:getMoves()
-	return self.player.app.board:getMoves(self.place, 
+	return self:getMovesBase(
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -350,8 +433,7 @@ local Rook = Piece:subclass()
 Rook.name = 'rook'
 
 function Rook:getMoves()
-	return self.player.app.board:getMoves(
-		self.place,
+	return self:getMovesBase(
 		-- start
 		function(place)
 			local nedges = #place.edges
@@ -381,7 +463,7 @@ local Queen = Piece:subclass()
 Queen.name = 'queen'
 
 function Queen:getMoves()
-	return self.player.app.board:getMoves(self.place, 
+	return self:getMovesBase(
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -428,7 +510,7 @@ King = Piece:subclass()
 King.name = 'king'
 
 function King:getMoves()
-	return self.player.app.board:getMoves(self.place, 
+	return self:getMovesBase(
 		-- start
 		function(place)
 			return coroutine.wrap(function()
@@ -578,87 +660,6 @@ function Board:getPlaceForRGB(r,g,b)
 		bit.lshift(b, 16)
 	)
 	return self.placeForIndex[i]
-end
-
--- returns a table-of-places of where the piece on this place can move
--- TODO just merge this into Piece:getMoves
--- and then change 'startmove' and 'nextmove' to Piece member function
-function Board:getMoves(place, startmove, nextmove)
-	assert(Place:isa(place))
-	assert(place.piece)
-
-	local moves = table()
-
-	-- now traverse the manifold, stepping in each direction
-	local function iterate(draw, p, srcp, step, already, state)
-		assert(Place:isa(p))
-		assert(Place:isa(srcp))
-		if already[p] then return end
-		already[p] = true
-	
-		-- TODO "draw" should be "checkTakePiece" or something
-		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
-		if draw or draw == nil then
-		
-			-- if we hit a friendly then stop movement ... always ... ?
-			if p.piece and p.piece.player == place.piece.player then
-				return
-			end
-
-			moves:insert(p)
-			
-			-- same, unfriendly
-			if p.piece and p.piece.player ~= place.piece.player then
-				return
-			end
-		end
-
-		-- using edges instead of projective basis
-		-- find 'p's neighborhood entry that points back to 'srcp'
-		local i,nbhd = p.edges:find(nil, function(nbhd)
-			return nbhd.place == srcp
-		end)
-if not nbhd then
-	print("came from", srcp.center)
-	print("at", p.center)
-	print("with edges")
-	for _,n in ipairs(p.edges) do
-		print('', n.place.center)
-	end
-end
-		assert(nbhd)
-
-		-- now each piece should pick the next neighbor based on the prev neighbor and the neighborhood ...
-		-- cycle  around thema nd see if the piece should move in that direction
-		-- ...
-		-- hmm, for modulo math's sake, 0-based indexes would be very nice here ...
-		-- yields:
-		-- 1st: neighborhood index
-		-- 2nd: mark or not
-		for j, draw in nextmove(p, i-1, step, state) do
-			-- now pick the piece
-			local n = p.edges[j+1]
-			if n and n.place then
-				iterate(draw, n.place, p, step+1, already, state)
-			end
-		end
-	end
-	
-	-- yields:
-	-- 1st: neighborhood index (0-based)
-	-- 2nd: mark or not
-	-- 3rd: is forwarded as state variables to 'nextmove'
-	for j, draw, state in startmove(place) do
-		local n = place.edges[j+1]
-		if n and n.place then
-			-- make a basis between 'place' and neighbor 'n'
-			local already = {}
-			already[place] = true
-			iterate(draw, n.place, place, 1, already, state)
-		end
-	end
-
-	return moves
 end
 
 
@@ -990,10 +991,14 @@ function App:updateGUI()
 					port = self.port,
 					threads = self.threads,
 					addr = self.connectPopupOpen == 'connect' and self.address or nil,
+					
+					-- misnomer ... this function inits immediately for the server
+					-- so what gets called when the server 
 					onConnect = function()
-print'connected!'						
+print('beginning '..self.connectPopupOpen)
+						self.connectPopupOpen = nil
 						self.connectWaiting = nil
-						-- TODO start game ...
+						-- TODO wait for a client to connect ...
 					end,
 				}
 				-- TODO popup 'waiting' ...
