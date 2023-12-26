@@ -21,6 +21,7 @@ function Piece:clone(newBoard)
 		player = self.player,
 		placeIndex = self.placeIndex,
 		lastPlaceIndex = self.lastPlaceIndex,
+		moved = self.moved,
 	}
 	return piece
 end
@@ -160,6 +161,7 @@ function Piece:moveTo(to)
 	end
 	to.piece = self
 	self.placeIndex = to.index
+	self.moved = true
 end
 
 
@@ -172,7 +174,6 @@ Pawn.name = 'pawn'
 function Pawn:clone(...)
 	local piece = Pawn.super.clone(self, ...)
 	piece.dir = self.dir
-	piece.moved = self.moved
 	return piece
 end
 
@@ -278,7 +279,6 @@ end
 
 function Pawn:moveTo(...)
 	Pawn.super.moveTo(self, ...)
-	self.moved = true
 	-- TODO here - if we ended up moving 2 squares then save our from and to
 	-- and esp the square between
 	-- and, for the length of 1 move, save that as the en-pessant square
