@@ -169,20 +169,19 @@ function App:update()
 						if piece then
 							self.selectedMoves = piece:getMoves()
 
-							-- if we're in check (and we dont want to allow manual capturing of the king...) then filter out all moves that won't end the check
-							if self.board.inCheck then
-								self.selectedMoves = self.selectedMoves:filter(function(place)
-									local destPlaceIndex = place.index
+							-- if we dont want to allow manual capturing of the king...
+							-- ... then filter out all moves that won't end the check
+							self.selectedMoves = self.selectedMoves:filter(function(place)
+								local destPlaceIndex = place.index
 
-									local forecastBoard = self.board:clone()
-									local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
-									if forecastSelPiece then
-										forecastSelPiece:moveTo(forecastBoard.places[destPlaceIndex])
-									end
-									forecastBoard:refreshMoves()
-									return not forecastBoard.inCheck
-								end)
-							end
+								local forecastBoard = self.board:clone()
+								local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
+								if forecastSelPiece then
+									forecastSelPiece:moveTo(forecastBoard.places[destPlaceIndex])
+								end
+								forecastBoard:refreshMoves()
+								return not forecastBoard.inCheck
+							end)
 						else
 							self.selectedMoves = nil
 						end

@@ -26,22 +26,6 @@ function Piece:clone(newBoard)
 	return piece
 end
 
-function Piece:getEdgeIndexForDir(dir)
-	return select(2, self.board.places[self.placeIndex].edges:mapi(function(edge)
-		--[[ use edge basis ...
-		-- ... but what if the edge basis is in the perpendicular plane?
-		return (edge.ey:dot(dirToOtherKing))
-		--]]
-		-- [[ use line to neighboring tile
-		if not edge.placeIndex then return -math.huge end
-		return (
-			self.board.places[edge.placeIndex].center
-			- self.board.places[self.placeIndex].center
-		):normalize():dot(dir)
-		--]]
-	end):sup())
-end
-
 local uvs = table{
 	vec3f(0,0,0),
 	vec3f(0,1,0),
@@ -198,7 +182,7 @@ end
 -- this also means  store state info for when the piece is created ... this is only true for pawns
 -- run this when we're done placing pieces
 function Pawn:initAfterPlacing()
-	self.dir = self:getEdgeIndexForDir(
+	self.dir = self.board.places[self.placeIndex]:getEdgeIndexForDir(
 		self.board.playerDirToOtherKings[self.player.index]
 	)
 	assert(self.dir)
@@ -415,6 +399,7 @@ Piece.King = King
 King.name = 'king'
 
 function King:moveStart(place)
+	local fwddir = place:getEdgeIndexForDir(self.board.playerDirToOtherKings[self.player.index])
 	return coroutine.wrap(function()
 		for i=0,#place.edges-1 do
 			for lr=-1,1 do	-- left, center, right
@@ -428,13 +413,15 @@ function King:moveStart(place)
 		-- TODO here, yield for the left and right neighbors, with a 'lr' of +2/-2 ...
 		-- and then code in the lr == +-2 states below ...
 		-- and for those, don't allow them to move if the move would put us in check ...
+		coroutine.yield(fwddir-1, false, 2)
+		coroutine.yield(fwddir-1, false, -2)
 	end)
 end
 
 function King:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
-		if lr ~= 0 then	-- bishop move
+		if lr == 1 or lr == -1 then	-- diagonal move
 			if step == 0 then
 				coroutine.yield(
 					(edgeindex + math.floor(nedges/2) - lr) % nedges,
@@ -443,6 +430,13 @@ function King:moveStep(place, edgeindex, step, lr)
 			elseif step == 1 then
 				coroutine.yield(
 					(edgeindex + math.floor(nedges/2) + lr) % nedges,
+					true
+				)
+			end
+		elseif lr == 2 or lr == -2 then	-- castle
+			if step == 0 then
+				coroutine.yield(
+					(edgeindex + math.floor(nedges/2)) % nedges,
 					true
 				)
 			end

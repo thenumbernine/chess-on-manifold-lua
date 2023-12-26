@@ -42,6 +42,23 @@ function Place:init(args)
 	self.edges = table()
 end
 
+function Place:getEdgeIndexForDir(dir)
+	return select(2, self.edges:mapi(function(edge)
+		--[[ use edge basis ...
+		-- ... but what if the edge basis is in the perpendicular plane?
+		return (edge.ey:dot(dirToOtherKing))
+		--]]
+		-- [[ use line to neighboring tile
+		if not edge.placeIndex then return -math.huge end
+		return (
+			self.board.places[edge.placeIndex].center
+			- self.center
+		):normalize():dot(dir)
+		--]]
+	end):sup())
+end
+
+
 function Place:clone(newBoard)
 	local place = Place{
 		board = newBoard,
