@@ -49,7 +49,7 @@ function Place:clone(newBoard)
 		vtxs = self.vtxs:mapi(function(v) return v:clone() end),
 	}
 	if self.piece then
-		place.piece = self.piece:clone(newBoard, place)
+		place.piece = self.piece:clone(newBoard)
 	end
 	return place
 end

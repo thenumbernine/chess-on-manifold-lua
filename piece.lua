@@ -15,11 +15,12 @@ function Piece:init(args)
 	self.board.places[self.placeIndex].piece = self
 end
 
-function Piece:clone(newBoard, newPlace)
+function Piece:clone(newBoard)
 	local piece = getmetatable(self){
 		board = newBoard,
 		player = self.player,
-		placeIndex = newPlace.index,
+		placeIndex = self.placeIndex,
+		lastPlaceIndex = self.lastPlaceIndex,
 	}
 	return piece
 end
@@ -147,6 +148,7 @@ end
 
 
 function Piece:moveTo(to)
+	self.lastPlaceIndex = self.placeIndex
 	local from = self.board.places[self.placeIndex]
 	if from then
 		from.piece = nil
@@ -157,9 +159,7 @@ function Piece:moveTo(to)
 		to.piece.placeIndex = nil
 	end
 	to.piece = self
-	if to.piece then
-		to.piece.placeIndex = to.index
-	end
+	self.placeIndex = to.index
 end
 
 
@@ -246,7 +246,7 @@ function Pawn:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		if lr == 0 then
-		-- moving forward ...
+			-- moving forward ...
 			if self.moved then return end
 			-- if this is our starting square then ...
 			if step > 1 then return end
@@ -279,6 +279,9 @@ end
 function Pawn:moveTo(...)
 	Pawn.super.moveTo(self, ...)
 	self.moved = true
+	-- TODO here - if we ended up moving 2 squares then save our from and to
+	-- and esp the square between
+	-- and, for the length of 1 move, save that as the en-pessant square
 end
 
 local Bishop = Piece:subclass()

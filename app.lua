@@ -166,7 +166,7 @@ function App:update()
 						if piece then
 							self.selectedMoves = piece:getMoves()
 
-							-- if we're in check then filter out all moves that won't end the check
+							-- if we're in check (and we dont want to allow manual capturing of the king...) then filter out all moves that won't end the check
 							if self.board.inCheck then
 								self.selectedMoves = self.selectedMoves:filter(function(place)
 									local destPlaceIndex = place.index
