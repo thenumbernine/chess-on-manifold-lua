@@ -120,6 +120,10 @@ local result = vec4ub()
 function App:update()
 	
 	self.threads:update()
+	-- why not just make this another update thread?
+	if self.server then
+		self.server:update()
+	end
 
 	-- determine tile under mouse
 	gl.glClearColor(0,0,0,1)
@@ -401,6 +405,7 @@ print('historyIndex', self.historyIndex)
 			ig.luatableInputText('port', self, 'port')
 			if ig.igButton'Go' then
 				self.connectWaiting = true
+print(self.connectPopupOpen, self.address, self.port)
 				self.clientConn, self.server = self.netcom:start{
 					port = self.port,
 					threads = self.threads,
@@ -415,6 +420,7 @@ print('got connection '..self.connectPopupOpen)
 						-- TODO wait for a client to connect ...
 					end,
 				}
+print('created netcom', self.clientConn, self.server)				
 				-- TODO popup 'waiting' ...
 			end
 		end
