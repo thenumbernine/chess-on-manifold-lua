@@ -46,7 +46,7 @@ function Board:buildEdges()
 				if pb ~= pa then
 					for j=1,#pb.vtxs do
 						local j2 = j % #pb.vtxs+1
-						
+
 						if edgeMatches(
 							pa.vtxs[i],
 							pa.vtxs[i2],
@@ -80,13 +80,13 @@ function Board:buildEdges()
 				io.write('\t', dot)
 			end
 		end
-		print()	
+		print()
 		--]]
 	end
 end
 
--- call this last in generation or after :clone()
--- ... to get the vector from kings 
+-- call this last in generation
+-- ... to get the vector from kings
 -- ... to init the pawns fwd dir and kings left/right dirs
 function Board:initPieces()
 	local playersKingPos = self.app.players:mapi(function(player)
@@ -114,7 +114,7 @@ function Board:initPieces()
 	-- run this after placing all pieces
 	for _,place in ipairs(self.places) do
 		local piece = place.piece
-		if piece 
+		if piece
 		and piece.initAfterPlacing
 		then
 			piece:initAfterPlacing()
@@ -163,9 +163,9 @@ function Board:refreshMoves()
 				if targetPiece then
 					local friendly = targetPiece.player == piece.player
 					self.attacks:insert{piece, targetPiece, friendly}
-				
-					if not friendly 
-					and Piece.King:isa(targetPiece) 
+
+					if not friendly
+					and Piece.King:isa(targetPiece)
 					then
 						self.inCheck = true
 					end
@@ -184,6 +184,7 @@ function Board:clone()
 	end
 
 	-- shallow copy
+	newBoard.playerDirToOtherKings = self.playerDirToOtherKings
 	for placeIndex,newPlace in ipairs(newBoard.places) do
 		newPlace.edges = self.places[placeIndex].edges
 	end
@@ -231,9 +232,9 @@ Board.generators:insert{Traditional = function(app)
 			board:makePiece{class=Piece.Pawn, player=player, placeIndex = 1 + x + 8 * y}
 		end
 	end
-	
+
 	board:initPieces()
-	
+
 	return board
 end}
 
@@ -280,9 +281,9 @@ Board.generators:insert{Cylinder = function(app)
 			board:makePiece{class=Piece.Pawn, player=player, placeIndex = 1 + x + 8 * y}
 		end
 	end
-	
+
 	board:initPieces()
-	
+
 	return board
 end}
 
@@ -323,12 +324,12 @@ Board.generators:insert{Cube = function(app)
 		end
 	end
 	board:buildEdges()
-	
+
 	for i=1,2 do
 		local player = Player(app)
 		assert(player.index == i)
 		local places = placesPerSide[0][2*i-3]
-		
+
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[0][0].index}
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[1][0].index}
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[2][0].index}
@@ -338,20 +339,20 @@ Board.generators:insert{Cube = function(app)
 		board:makePiece{class=Piece.Rook, player=player, placeIndex=places[1][1].index}
 		board:makePiece{class=Piece.Queen, player=player, placeIndex=places[2][1].index}
 		board:makePiece{class=Piece.Knight, player=player, placeIndex=places[3][1].index}
-		
+
 		board:makePiece{class=Piece.Knight, player=player, placeIndex=places[0][2].index}
 		board:makePiece{class=Piece.King, player=player, placeIndex=places[1][2].index}
 		board:makePiece{class=Piece.Rook, player=player, placeIndex=places[2][2].index}
 		board:makePiece{class=Piece.Bishop, player=player, placeIndex=places[3][2].index}
-		
+
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[0][3].index}
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[1][3].index}
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[2][3].index}
 		board:makePiece{class=Piece.Pawn, player=player, placeIndex=places[3][3].index}
 	end
-	
+
 	board:initPieces()
-	
+
 	return board
 end}
 

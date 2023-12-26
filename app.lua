@@ -153,6 +153,9 @@ function App:update()
 				self.turn = self.turn % #self.players + 1
 
 				self.board:refreshMoves()
+				
+				self.selectedPlace = nil
+				self.selectedPlaceIndex = nil
 			else
 				if self.mouseOverPlace
 				and self.mouseOverPlace.piece

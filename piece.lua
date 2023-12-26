@@ -26,6 +26,22 @@ function Piece:clone(newBoard)
 	return piece
 end
 
+function Piece:getEdgeIndexForDir(dir)
+	return select(2, self.board.places[self.placeIndex].edges:mapi(function(edge)
+		--[[ use edge basis ...
+		-- ... but what if the edge basis is in the perpendicular plane?
+		return (edge.ey:dot(dirToOtherKing))
+		--]]
+		-- [[ use line to neighboring tile
+		if not edge.placeIndex then return -math.huge end
+		return (
+			self.board.places[edge.placeIndex].center
+			- self.board.places[self.placeIndex].center
+		):normalize():dot(dir)
+		--]]
+	end):sup())
+end
+
 local uvs = table{
 	vec3f(0,0,0),
 	vec3f(0,1,0),
@@ -51,7 +67,7 @@ function Piece:draw()
 	gl.glBegin(gl.GL_QUADS)
 	for _,uv in ipairs(uvs) do
 		gl.glTexCoord3f(uv:unpack())
-		gl.glVertex3f((place.center 
+		gl.glVertex3f((place.center
 			+ (uv.x - .5) * drawX
 			- (uv.y - .5) * drawY
 			+ .01 * n
@@ -77,20 +93,20 @@ function Piece:getMoves(friendlyFire)
 		--assert(Place:isa(srcp))
 		if already[p] then return end
 		already[p] = true
-	
+
 		-- TODO "draw" should be "checkTakePiece" or something
 		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
 		if draw or draw == nil then
-		
-			-- if we hit a friendly then stop movement 
-			if p.piece and p.piece.player == place.piece.player 
+
+			-- if we hit a friendly then stop movement
+			if p.piece and p.piece.player == place.piece.player
 			and not friendlyFire
 			then
 				return
 			end
 
 			moves:insert(p)
-			
+
 			-- same, unfriendly
 			if p.piece then
 				return
@@ -127,7 +143,7 @@ end
 			end
 		end
 	end
-	
+
 	-- yields:
 	-- 1st: neighborhood index (0-based)
 	-- 2nd: mark or not
@@ -182,21 +198,9 @@ end
 -- this also means  store state info for when the piece is created ... this is only true for pawns
 -- run this when we're done placing pieces
 function Pawn:initAfterPlacing()
-	local dirToOtherKing = self.board.playerDirToOtherKings[self.player.index]
---print('dirToOtherKing', dirToOtherKing)
-	self.dir = select(2, self.board.places[self.placeIndex].edges:mapi(function(edge)
-		--[[ use edge basis ...
-		-- ... but what if the edge basis is in the perpendicular plane?
-		return (edge.ey:dot(dirToOtherKing))
-		--]]
-		-- [[ use line to neighboring tile
-		if not edge.placeIndex then return -math.huge end
-		return (
-			self.board.places[edge.placeIndex].center 
-			- self.board.places[self.placeIndex].center
-		):normalize():dot(dirToOtherKing)
-		--]]
-	end):sup())
+	self.dir = self:getEdgeIndexForDir(
+		self.board.playerDirToOtherKings[self.player.index]
+	)
 	assert(self.dir)
 --	local edge = self.board.places[self.placeIndex].edges[self.dir]
 --print('dir', edge.ex, edge.ey)
@@ -209,7 +213,7 @@ function Pawn:moveStart(place)
 			if lr == 0 then
 				local neighbor = self.board.places[place.edges[self.dir].placeIndex]
 				if neighbor
-				and not neighbor.piece 
+				and not neighbor.piece
 				then -- ... unless we let pawns capture forward 1 tile ...
 					coroutine.yield(self.dir-1, true, lr)
 				end
@@ -247,7 +251,7 @@ function Pawn:moveStep(place, edgeindex, step, lr)
 					)
 				end
 			else
-				-- else - 
+				-- else -
 				-- TODO if no piece - then look if a pawn just hopped over this last turn ... if so then allow en piss ant
 			end
 		end
@@ -316,7 +320,7 @@ function Knight:moveStart(place)
 		end
 	end)
 end
-		
+
 function Knight:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
@@ -380,7 +384,7 @@ function Queen:moveStart(place)
 		end
 	end)
 end
-		
+
 function Queen:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
@@ -426,7 +430,7 @@ function King:moveStart(place)
 		-- and for those, don't allow them to move if the move would put us in check ...
 	end)
 end
-		
+
 function King:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
@@ -447,4 +451,4 @@ function King:moveStep(place, edgeindex, step, lr)
 end
 
 
-return Piece 
+return Piece
