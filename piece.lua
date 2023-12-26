@@ -401,7 +401,6 @@ King.name = 'king'
 function King:moveStart(place)
 	local nedges = #place.edges
 	local fwddir = place:getEdgeIndexForDir(self.board.playerDirToOtherKings[self.player.index])
-print('king fwddir', fwddir)	
 	return coroutine.wrap(function()
 		for i=0,nedges-1 do
 			for lr=-1,1 do	-- left, center, right
