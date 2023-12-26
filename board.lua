@@ -169,7 +169,8 @@ function Board:clone()
 end
 
 
-function Board.Traditional(app)
+Board.generators = table()
+Board.generators:insert{Traditional = function(app)
 	local board = Board(app)
 
 	for j=0,7 do
@@ -211,10 +212,58 @@ function Board.Traditional(app)
 	board:initPieces()
 	
 	return board
-end
+end}
 
+Board.generators:insert{Cylinder = function(app)
+	local board = Board(app)
 
-function Board.Cube(app)
+	local function getpos(i, j)
+		local r = 2
+		local th = -i/8*2*math.pi
+		return vec3f(r * math.cos(th), j - 4, r * math.sin(th))
+	end
+	for j=0,7 do
+		for i=0,7 do
+			Place{
+				board = board,
+				color = (i+j)%2 == 1 and vec3f(1,1,1) or vec3f(.2, .2, .2),
+				vtxs = {
+					getpos(i, j),
+					getpos(i+1, j),
+					getpos(i+1, j+1),
+					getpos(i, j+1),
+				},
+			}
+		end
+	end
+	board:buildEdges()
+
+	-- board makes players?  or app makes players?  hmm
+	-- board holds players?
+	assert(#app.players == 0)
+	for i=1,2 do
+		local player = Player(app)
+		local y = 7 * (i-1)
+		board:makePiece{class=Piece.Rook, player=player, placeIndex=1 + 0 + 8 * y}
+		board:makePiece{class=Piece.Knight, player=player, placeIndex=1 + 1 + 8 * y}
+		board:makePiece{class=Piece.Bishop, player=player, placeIndex=1 + 2 + 8 * y}
+		board:makePiece{class=Piece.Queen, player=player, placeIndex=1 + 3 + 8 * y}
+		board:makePiece{class=Piece.King, player=player, placeIndex=1 + 4 + 8 * y}
+		board:makePiece{class=Piece.Bishop, player=player, placeIndex=1 + 5 + 8 * y}
+		board:makePiece{class=Piece.Knight, player=player, placeIndex=1 + 6 + 8 * y}
+		board:makePiece{class=Piece.Rook, player=player, placeIndex=1 + 7 + 8 * y}
+		local y = 5 * (i-1) + 1
+		for x=0,7 do
+			board:makePiece{class=Piece.Pawn, player=player, placeIndex = 1 + x + 8 * y}
+		end
+	end
+	
+	board:initPieces()
+	
+	return board
+end}
+
+Board.generators:insert{Cube = function(app)
 	local board = Board(app)
 	local placesPerSide = {}
 	for a=0,2 do
@@ -281,6 +330,6 @@ function Board.Cube(app)
 	board:initPieces()
 	
 	return board
-end
+end}
 
 return Board

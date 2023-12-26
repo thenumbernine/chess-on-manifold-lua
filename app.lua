@@ -106,7 +106,7 @@ end
 
 function App:newGame(boardGenerator)
 	--boardGenerator = boardGenerator or Board.Cube
-	boardGenerator = boardGenerator or Board.Traditional
+	boardGenerator = boardGenerator or select(2, next(Board.generators[1]))
 	-- per-game
 	self.players = table()
 	self.board = boardGenerator(self)
@@ -312,11 +312,11 @@ function App:updateGUI()
 		if ig.igBeginMenu'File' then
 			ig.igSeparator()
 			ig.igText'Local'
-			if ig.igButton'New Game: Traditional' then
-				self:newGame(Board.Traditional)
-			end
-			if ig.igButton'New Game: Cube' then
-				self:newGame(Board.Cube)
+			for _,genpair in ipairs(Board.generators) do
+				local name, generator = next(genpair)
+				if ig.igButton('New Game: '..name) then
+					self:newGame(generator)
+				end
 			end
 			ig.igSeparator()
 			ig.igText'Remote'
