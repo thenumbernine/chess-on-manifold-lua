@@ -287,18 +287,25 @@ print'forecasting...'
 	App.super.update(self)
 end
 
-function App:event(event)
-	if event.type == sdl.SDL_KEYDOWN then
-		if event.key.keysym.sym == sdl.SDLK_LEFT then
-			self.historyIndex = self.historyIndex or #self.history + 1
-			self.historyIndex = math.clamp(self.historyIndex - 1, 1, #self.history + 1)
-			if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
-print('historyIndex', self.historyIndex)
-		elseif event.key.keysym.sym == sdl.SDLK_RIGHT then
-			self.historyIndex = self.historyIndex or #self.history + 1
-			self.historyIndex = math.clamp(self.historyIndex + 1, 1, #self.history + 1)
-			if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
-print('historyIndex', self.historyIndex)
+function App:event(event, ...)
+	if App.super.event then
+		App.super.event(self, event, ...)
+	end
+	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
+	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
+	if canHandleKeyboard then
+		if event.type == sdl.SDL_KEYDOWN then
+			if event.key.keysym.sym == sdl.SDLK_LEFT then
+				self.historyIndex = self.historyIndex or #self.history + 1
+				self.historyIndex = math.clamp(self.historyIndex - 1, 1, #self.history + 1)
+				if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
+	print('historyIndex', self.historyIndex)
+			elseif event.key.keysym.sym == sdl.SDLK_RIGHT then
+				self.historyIndex = self.historyIndex or #self.history + 1
+				self.historyIndex = math.clamp(self.historyIndex + 1, 1, #self.history + 1)
+				if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
+	print('historyIndex', self.historyIndex)
+			end
 		end
 	end
 end
