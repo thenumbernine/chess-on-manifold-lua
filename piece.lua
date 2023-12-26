@@ -399,9 +399,11 @@ Piece.King = King
 King.name = 'king'
 
 function King:moveStart(place)
+	local nedges = #place.edges
 	local fwddir = place:getEdgeIndexForDir(self.board.playerDirToOtherKings[self.player.index])
+print('king fwddir', fwddir)	
 	return coroutine.wrap(function()
-		for i=0,#place.edges-1 do
+		for i=0,nedges-1 do
 			for lr=-1,1 do	-- left, center, right
 				coroutine.yield(
 					i,		-- neighbor
@@ -413,28 +415,30 @@ function King:moveStart(place)
 		-- TODO here, yield for the left and right neighbors, with a 'lr' of +2/-2 ...
 		-- and then code in the lr == +-2 states below ...
 		-- and for those, don't allow them to move if the move would put us in check ...
-		coroutine.yield(fwddir-1, false, 2)
-		coroutine.yield(fwddir-1, false, -2)
+		if not self.moved then
+			-- TODO if the left rook hasn't moved ...
+			-- and there's no check ...
+			-- on the king, on the tile to the left, on the tile two left ...
+			coroutine.yield(fwddir % nedges, false, 2)
+			-- TODO if the right rook hasn't moved ...
+			coroutine.yield((fwddir + 2) % nedges, false, -2)
+		end
 	end)
 end
 
 function King:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
+		assert(step > 0)
 		if lr == 1 or lr == -1 then	-- diagonal move
-			if step == 0 then
-				coroutine.yield(
-					(edgeindex + math.floor(nedges/2) - lr) % nedges,
-					false
-				)
-			elseif step == 1 then
+			if step == 1 then
 				coroutine.yield(
 					(edgeindex + math.floor(nedges/2) + lr) % nedges,
 					true
 				)
 			end
 		elseif lr == 2 or lr == -2 then	-- castle
-			if step == 0 then
+			if step == 1 then
 				coroutine.yield(
 					(edgeindex + math.floor(nedges/2)) % nedges,
 					true
