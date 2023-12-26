@@ -17,7 +17,7 @@ local Board = require 'board'
 
 local App = require 'imguiapp.withorbit'()
 
-App.title = 'Chess or something'
+App.title = 'Chess on a Manifold'
 App.viewDist = 5
 
 -- need as many as is in app.players[]
@@ -34,7 +34,6 @@ function App:initGL()
 
 	-- textures:
 	local piecesImg = Image'pieces.png'
-	print(piecesImg.width, piecesImg.height)
 	local texsize = piecesImg.height/2
 	assert(piecesImg.width == texsize*6)
 	assert(piecesImg.height == texsize*2)
@@ -119,6 +118,9 @@ end
 
 local result = vec4ub()
 function App:update()
+	
+	self.threads:update()
+
 	-- determine tile under mouse
 	gl.glClearColor(0,0,0,1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
@@ -163,8 +165,21 @@ function App:update()
 						local piece = self.selectedPlace.piece
 						if piece then
 							self.selectedMoves = piece:getMoves()
-						
-							-- TODO if we're in check then filter out all moves that won't end the check
+
+							-- if we're in check then filter out all moves that won't end the check
+							if self.board.inCheck then
+								self.selectedMoves = self.selectedMoves:filter(function(place)
+									local destPlaceIndex = place.index
+
+									local forecastBoard = self.board:clone()
+									local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
+									if forecastSelPiece then
+										forecastSelPiece:moveTo(forecastBoard.places[destPlaceIndex])
+									end
+									forecastBoard:refreshMoves()
+									return not forecastBoard.inCheck
+								end)
+							end
 						else
 							self.selectedMoves = nil
 						end
@@ -181,12 +196,11 @@ function App:update()
 		if self.selectedPlace
 		and self.selectedPlace.piece
 		and self.mouseOverPlace
-		and self.selectedMoves:find(self.mouseOverPlace)
+		--and self.selectedMoves:find(self.mouseOverPlace)
 		then
 			if not self.forecastPlace
 			or self.forecastPlace ~= self.mouseOverPlace
 			then
-print'forecasting...'			
 				self.forecastPlace = self.mouseOverPlace
 				self.forecastBoard = self.board:clone()
 				
@@ -196,27 +210,9 @@ print'forecasting...'
 				end
 				self.forecastBoard:refreshMoves()
 			end
-		--[=[
-			-- ... then show things if the piece were to move ...
-			-- TODO push/pop entire board state?  instead of just the two pieces at these two squares?
-			
-			self.mouseOverMoves = fromPiece:getMoves()
-			self.board:refreshMoves()
-
-			fromPiece:moveTo(from)
-			-- TODO how about a Place:setPiece() function instead?
-			if toPiece then
-				toPiece:moveTo(to)
-			else
-				to.piece = nil
-			end
-		--]=]
 		else
 			self.forecastBoard = nil
 			self.forecastPlace = nil
-			-- restore original piece highlights
-			--self.mouseOverMoves = self.selectedMoves
-			--self.board:refreshMoves()
 		end
 	end
 
@@ -411,7 +407,7 @@ print('historyIndex', self.historyIndex)
 					-- misnomer ... this function inits immediately for the server
 					-- so what gets called when the server 
 					onConnect = function()
-print('beginning '..self.connectPopupOpen)
+print('got connection '..self.connectPopupOpen)
 						self.connectPopupOpen = nil
 						self.connectWaiting = nil
 						-- TODO wait for a client to connect ...
