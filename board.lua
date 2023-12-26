@@ -86,8 +86,31 @@ function Board:buildEdges()
 end
 
 -- call this last in generation or after :clone()
--- ... to init the pawns
+-- ... to get the vector from kings 
+-- ... to init the pawns fwd dir and kings left/right dirs
 function Board:initPieces()
+	local playersKingPos = self.app.players:mapi(function(player)
+		local kingPos = self.places:filter(function(place)
+			return place.piece
+			and Piece.King:isa(place.piece)
+			and place.piece.player == player
+		end):mapi(function(place)
+			return place.center
+		end)
+		if #kingPos == 0 then
+			error("found a player without a king")
+		end
+		return kingPos:sum() / #kingPos
+	end)
+
+	self.playerDirToOtherKings = playersKingPos:mapi(function(pos,i)
+		local otherPos = playersKingPos:filter(function(pos,j)
+			return i ~= j
+		end)
+		otherPos = otherPos:sum() / #otherPos
+		return (otherPos - pos):normalize()
+	end)
+
 	-- run this after placing all pieces
 	for _,place in ipairs(self.places) do
 		local piece = place.piece

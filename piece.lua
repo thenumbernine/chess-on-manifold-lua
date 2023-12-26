@@ -182,30 +182,7 @@ end
 -- this also means  store state info for when the piece is created ... this is only true for pawns
 -- run this when we're done placing pieces
 function Pawn:initAfterPlacing()
-	-- initial dir should be the edge whose 'ey' basis vector closest aligns with the vector between kings
-	local thisKings = self.board.places:filter(function(place)
-		return place.piece
-		and Piece.King:isa(place.piece)
-		and place.piece.player == self.player
-	end):mapi(function(place)
-		return place.center
-	end)
-	if #thisKings == 0 then
-		self.dir = 1
-		return
-	end
-	local thisKingPos = thisKings:sum() / #thisKings
-
-	local otherKings = self.board.places:filter(function(place)
-		return place.piece
-		and Piece.King:isa(place.piece)
-		and place.piece.player ~= self.player
-	end):mapi(function(place)
-		return place.center
-	end)
-	local otherKingPos = otherKings:sum() / #otherKings
-
-	local dirToOtherKing = (otherKingPos - thisKingPos):normalize()
+	local dirToOtherKing = self.board.playerDirToOtherKings[self.player.index]
 --print('dirToOtherKing', dirToOtherKing)
 	self.dir = select(2, self.board.places[self.placeIndex].edges:mapi(function(edge)
 		--[[ use edge basis ...
@@ -444,6 +421,9 @@ function King:moveStart(place)
 				)
 			end
 		end
+		-- TODO here, yield for the left and right neighbors, with a 'lr' of +2/-2 ...
+		-- and then code in the lr == +-2 states below ...
+		-- and for those, don't allow them to move if the move would put us in check ...
 	end)
 end
 		
