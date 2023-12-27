@@ -88,7 +88,6 @@ function App:initGL()
 	self.netcom = NetCom()
 	self.netcom:addClientToServerCall{
 		name = 'initPlayerConn',
-		args = {},
 		returnArgs = {
 			require 'netrefl.netfield'.netFieldNumber,
 		},
@@ -97,15 +96,31 @@ function App:initGL()
 			-- this is called upon server init before onConnect returns,
 			-- so it is before self.server is defined
 			-- it's also called before serverConn is inserted into server.serverConns
-			self.remoteIndex = #serverConn.server.serverConns
---DEBUG:print('netcom initPlayerConn func returning remoteIndex=', self.remoteIndex)
-			return self.remoteIndex
+			local remotePlayerIndex = #serverConn.server.serverConns
+--DEBUG:print('netcom initPlayerConn func returning remotePlayerIndex=', remotePlayerIndex)
+			return remotePlayerIndex
 		end,
 		postFunc = function(...)
 --DEBUG:print('netcom initPlayerConn done', ...)
 			--clientConn.playerIndexes = playerIndexes
 		end,
 	}
+	
+	self.netcom:addClientToServerCall{
+		name = 'doMove',
+		args = {
+			require 'netrefl.netfield'.netFieldNumber,
+			require 'netrefl.netfield'.netFieldNumber,
+		},
+		returnArgs = {
+			require 'netrefl.netfield'.netFieldBoolean,
+		},
+		func = function(serverConn, fromPlaceIndex, toPlaceIndex)
+--DEBUG:print('netcom doMove', serverConn.index, fromPlaceIndex, toPlaceIndex)
+			return self:doMove(fromPlaceIndex, toPlaceIndex)
+		end,
+	}
+
 	-- TODO assign each connecting player a player #
 	-- use a 'clientToServerCall' to call the server when a player moves
 	self.shared = {}
@@ -152,12 +167,86 @@ function App:newGame(boardGenerator)
 	-- per-game
 	self.players = table()
 	self.board = boardGenerator(self)
-	self.turn = 1
 	self.history = table()
 	self.historyIndex = nil
 	self.board:refreshMoves()
 
 	self.shared.turn = 1
+end
+
+function App:resetView()
+	self.view.pos:set(0, 0, self.viewDist)
+	self.view.orbit:set(0, 0, 0)
+	self.view.angle:set(0,0,0,1)
+end
+
+-- i = axis 1..3
+-- j = 1 for -90, 2 for +90
+function App:rotateView(i, j)
+	local quatf = require 'vec-ffi.quatf'
+	local rot = quatf()
+	rot.w = 90 * (2*j-1)
+	rot.s[i-1] = 1
+	-- how did I pick this for an API:
+	rot:fromAngleAxis(rot:unpack())
+	local dist = (self.view.pos - self.view.orbit):length()
+	self.view.angle = self.view.angle * rot
+	self.view.pos = self.view.angle:zAxis() * dist + self.view.orbit
+end
+
+function App:doMove(fromPlaceIndex, toPlaceIndex)
+--DEBUG:print('App:doMove', fromPlaceIndex, toPlaceIndex)
+	local fromPlace = self.board.places[fromPlaceIndex]
+	if not fromPlace then
+--DEBUG:print("...couldn't find fromPlaceIndex "..tostring(fromPlaceIndex))
+		return false
+	end
+	
+	if not fromPlace.piece then
+--DEBUG:print('...fromPlace had no piece')	
+		return false
+	end
+	
+	if fromPlace.piece.player.index ~= self.shared.turn then
+--DEBUG:print('...fromPlace piece was of player '..tostring(fromPlace.piece.player.index).." when it's player "..tostring(self.shared.turn).."'s turn")
+		return false
+	end
+
+	if not self.selectedMoves then
+--DEBUG:print("...we have no selectedMoves")
+		return false
+	end
+
+	local toPlace = self.board.places[toPlaceIndex]
+	if not toPlace then
+--DEBUG:print("...couldn't find toPlaceIndex "..tostring(toPlaceIndex))	
+		return false
+	end
+	
+	if not self.selectedMoves then
+--DEBUG:print("...we have no selectedMoves")
+		return false
+	end
+
+	if not self.selectedMoves:find(toPlace) then
+--DEBUG:print("...couldn't find toPlace in selectedMoves")
+		return false
+	end
+
+	-- if we're in a net game then only allow this if our remotePlayerIndex is the current turn ...
+
+	-- TODO do this client-side ...
+	self.history:insert(
+		self.board:clone()
+			:refreshMoves()
+	)
+
+	-- move the piece to that square
+	fromPlace.piece:moveTo(toPlace)
+
+	self.shared.turn = self.shared.turn % #self.players + 1
+
+	return true
 end
 
 local result = vec4ub()
@@ -182,28 +271,35 @@ function App:update()
 		if self.mouse.leftClick then
 			if self.selectedPlace
 			and self.selectedPlace.piece
-			and self.selectedPlace.piece.player.index == self.turn
+			and self.selectedPlace.piece.player.index == self.shared.turn
 			and self.selectedMoves 
 			and self.selectedMoves:find(self.mouseOverPlace)
 			then
-				self.selectedMoves = nil
-
-				self.history:insert(
-					self.board:clone()
-						:refreshMoves()
-				)
-
-				-- move the piece to that square
-				self.selectedPlace.piece:moveTo(
-					self.mouseOverPlace
-				)
+				-- move the piece
+				local done = function(result)
+					if not result then return end
 			
-				self.turn = self.turn % #self.players + 1
-
-				self.board:refreshMoves()
-				
-				self.selectedPlace = nil
-				self.selectedPlaceIndex = nil
+					self.selectedMoves = nil
+					
+					self.board:refreshMoves()
+					
+					self.selectedPlace = nil
+					self.selectedPlaceIndex = nil
+				end
+				-- TODO I'm sure netrefl has this functionality...
+				if self.clientConn then
+					self.clientConn:netcall{
+						'doMove',
+						self.selectedPlace.index,
+						self.mouseOverPlace.index,
+						done = done,
+					}
+				else
+					done(self:doMove(
+						self.selectedPlace.index,
+						self.mouseOverPlace.index
+					))
+				end
 			else
 				if self.mouseOverPlace
 				and self.mouseOverPlace.piece
@@ -390,9 +486,7 @@ function App:updateGUI()
 		end
 		if ig.igBeginMenu'View' then
 			if ig.igButton'Reset' then
-				self.view.pos:set(0, 0, self.viewDist)
-				self.view.orbit:set(0, 0, 0)
-				self.view.angle:set(0,0,0,1)
+				self:resetView()
 			end
 			for j=1,2 do
 				for i=1,3 do
@@ -400,15 +494,7 @@ function App:updateGUI()
 					if ig.igButton(
 						({'X', 'Y', 'Z'})[i]..({'-', '+'})[j]
 					) then
-						local quatf = require 'vec-ffi.quatf'
-						local rot = quatf()
-						rot.w = 90 * (2*j-1)
-						rot.s[i-1] = 1
-						-- how did I pick this for an API:
-						rot:fromAngleAxis(rot:unpack())
-						local dist = (self.view.pos - self.view.orbit):length()
-						self.view.angle = self.view.angle * rot
-						self.view.pos = self.view.angle:zAxis() * dist + self.view.orbit
+						self:rotateView(i, j)
 					end
 				end
 			end
@@ -430,11 +516,13 @@ function App:updateGUI()
 			ig.luatableCheckbox('Transparent Board', self, 'transparentBoard')
 			ig.igEndMenu()
 		end
-		local str = '...  '..self.colors[self.turn].."'s turn"
+		local str = '...  '..self.colors[self.shared.turn].."'s turn"
 		if self.board.inCheck then
 			str = str .. '... CHECK!'
 		end
-
+		if self.remotePlayerIndex then
+			str = str .. ' ... you are '..tostring(self.colors[self.remotePlayerIndex])
+		end
 		if ig.igBeginMenu(str) then
 			ig.igEndMenu()
 		end
@@ -486,9 +574,15 @@ function App:startRemote(method)
 
 			clientConn:netcall{
 				'initPlayerConn',
-				done = function(...)
---DEBUG:print('clientConn:netcall initPlayerConn done', ...)
+				done = function(remotePlayerIndex)
+--DEBUG:print('clientConn:netcall initPlayerConn done', self.remotePlayerIndex)
 					--clientConn.playerIndexes = playerIndexes
+					self.remotePlayerIndex = remotePlayerIndex
+					self:resetView()
+					if self.remotePlayerIndex == 2 then
+						self:rotateView(3, 2)
+						self:rotateView(3, 2)
+					end
 				end,
 		
 			}
