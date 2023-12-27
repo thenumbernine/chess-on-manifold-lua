@@ -295,6 +295,7 @@ function App:update()
 				local fromPlaceIndex = self.selectedPlace.index
 				local toPlaceIndex = self.mouseOverPlace.index
 				local done = function(result)
+--DEBUG:print('doMove done result', result)
 					if not result then 
 						-- failed move -- deselect
 						self.selectedMoves = nil
@@ -327,15 +328,34 @@ function App:update()
 				end
 				-- TODO I'm sure netrefl has this functionality...
 				if self.clientConn then
---DEBUG:print('sending clientConn doMove')					
-					self.clientConn:netcall{
-						done = done,
-						'doMove',
-						playerIndex,
-						fromPlaceIndex,
-						toPlaceIndex,
-					}
+					if self.server then
+--DEBUG:print('server sending clientConn doMove')
+						self.clientConn:netcall{
+							done = done,
+							'doMove',
+							playerIndex,
+							fromPlaceIndex,
+							toPlaceIndex,
+						}
+					else
+--DEBUG:print('client sending clientConn doMove')
+						-- first try
+						if self:doMove(
+							playerIndex,
+							fromPlaceIndex,
+							toPlaceIndex
+						) then
+							self.clientConn:netcall{
+								done = done,
+								'doMove',
+								playerIndex,
+								fromPlaceIndex,
+								toPlaceIndex,
+							}
+						end
+					end
 				else
+--DEBUG:print('local doMove')
 					done(self:doMove(
 						playerIndex,
 						fromPlaceIndex,
