@@ -166,6 +166,7 @@ function App:initGL()
 
 	-- init gui vars:
 	self.transparentBoard = false
+	self.showHints = false
 
 	self:newGame()
 
@@ -448,7 +449,9 @@ function App:update()
 	end
 	drawBoard:draw()
 
-	if #drawBoard.attacks > 0 then
+	if self.showHints
+	and #drawBoard.attacks > 0 
+	then
 		gl.glBegin(gl.GL_TRIANGLES)
 		for _,attack in ipairs(drawBoard.attacks) do
 			if attack[3] then
@@ -604,6 +607,7 @@ function App:updateGUI()
 
 			ig.igSeparator()
 			ig.luatableCheckbox('Transparent Board', self, 'transparentBoard')
+			ig.luatableCheckbox('Show Hints', self, 'showHints')
 			ig.igEndMenu()
 		end
 		local str = '...  '..self.colors[self.shared.turn].."'s turn"
