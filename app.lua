@@ -106,24 +106,34 @@ function App:initGL()
 		end,
 	}
 	
-	self.netcom:addClientToServerCall{
-		name = 'doMove',
-		args = {
-			require 'netrefl.netfield'.netFieldNumber,
-			require 'netrefl.netfield'.netFieldNumber,
-		},
-		returnArgs = {
-			require 'netrefl.netfield'.netFieldBoolean,
-		},
-		func = function(serverConn, fromPlaceIndex, toPlaceIndex)
---DEBUG:print('netcom doMove', serverConn.index, fromPlaceIndex, toPlaceIndex)
-			return self:doMove(fromPlaceIndex, toPlaceIndex)
-		end,
-	}
+-- TODO automatically wrap member functions ...
+	for _,f in ipairs{'addClientToServerCall', 'addServerToClientCall'} do
+		self.netcom[f](self.netcom, {
+			name = 'doMove',
+			args = {
+				require 'netrefl.netfield'.netFieldNumber,
+				require 'netrefl.netfield'.netFieldNumber,
+				require 'netrefl.netfield'.netFieldNumber,
+			},
+			returnArgs = {
+				require 'netrefl.netfield'.netFieldBoolean,
+			},
+			func = function(serverConn, ...)
+	--DEBUG:print('netcom doMove', serverConn.index, ...)
+				return self:doMove(...)
+			end,
+		})
+	end
 
 	-- TODO assign each connecting player a player #
 	-- use a 'clientToServerCall' to call the server when a player moves
-	self.shared = {}
+	self.shared = {
+		turn = 1,
+		__netfields = {
+			-- doMove will handle turn
+			--turn = require 'netrefl.netfield'.netFieldNumber,
+		},
+	}
 	self.netcom:addObject{name='shared', object=self.shared}
 
 	self.address = 'localhost'
@@ -194,25 +204,35 @@ function App:rotateView(i, j)
 	self.view.pos = self.view.angle:zAxis() * dist + self.view.orbit
 end
 
-function App:doMove(fromPlaceIndex, toPlaceIndex)
---DEBUG:print('App:doMove', fromPlaceIndex, toPlaceIndex)
+function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
+--DEBUG:print('App:doMove', playerIndex, fromPlaceIndex, toPlaceIndex)
+	
+	-- if we're in a net game then only allow this if our remotePlayerIndex is the current turn ...
+	if playerIndex ~= self.shared.turn then 
+--DEBUG:print("App:doMove playerIndex doesn't match turn", self.shared.turn)
+		return false
+	end
+
 	local fromPlace = self.board.places[fromPlaceIndex]
 	if not fromPlace then
 --DEBUG:print("...couldn't find fromPlaceIndex "..tostring(fromPlaceIndex))
 		return false
 	end
-	
-	if not fromPlace.piece then
+
+	local fromPiece = fromPlace.piece
+	if not fromPiece then
 --DEBUG:print('...fromPlace had no piece')	
 		return false
 	end
 	
-	if fromPlace.piece.player.index ~= self.shared.turn then
---DEBUG:print('...fromPlace piece was of player '..tostring(fromPlace.piece.player.index).." when it's player "..tostring(self.shared.turn).."'s turn")
+	if fromPiece.player.index ~= self.shared.turn then
+--DEBUG:print('...fromPiece was of player '..tostring(fromPiece.player.index).." when it's player "..tostring(self.shared.turn).."'s turn")
 		return false
 	end
 
-	if not self.selectedMoves then
+	local fromMoves = fromPiece:getMoves()
+	
+	if not fromMoves then
 --DEBUG:print("...we have no selectedMoves")
 		return false
 	end
@@ -223,17 +243,16 @@ function App:doMove(fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 	
-	if not self.selectedMoves then
+	if not fromMoves then
 --DEBUG:print("...we have no selectedMoves")
 		return false
 	end
 
-	if not self.selectedMoves:find(toPlace) then
+	if not fromMoves:find(toPlace) then
 --DEBUG:print("...couldn't find toPlace in selectedMoves")
 		return false
 	end
 
-	-- if we're in a net game then only allow this if our remotePlayerIndex is the current turn ...
 
 	-- TODO do this client-side ...
 	self.history:insert(
@@ -245,7 +264,7 @@ function App:doMove(fromPlaceIndex, toPlaceIndex)
 	fromPlace.piece:moveTo(toPlace)
 
 	self.shared.turn = self.shared.turn % #self.players + 1
-
+--DEBUG:print('App:doMove self.shared.turn='..tostring(self.shared.turn))
 	return true
 end
 
@@ -276,28 +295,53 @@ function App:update()
 			and self.selectedMoves:find(self.mouseOverPlace)
 			then
 				-- move the piece
+				local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
+				local fromPlaceIndex = self.selectedPlace.index
+				local toPlaceIndex = self.mouseOverPlace.index
 				local done = function(result)
-					if not result then return end
-			
-					self.selectedMoves = nil
+					if not result then 
+						-- failed move -- deselect
+						self.selectedMoves = nil
+						self.selectedPlace = nil
+						self.selectedPlaceIndex = nil
+					else
+						-- successful move ...
+						self.selectedMoves = nil
+						
+						self.board:refreshMoves()
+						
+						self.selectedPlace = nil
+						self.selectedPlaceIndex = nil
 					
-					self.board:refreshMoves()
-					
-					self.selectedPlace = nil
-					self.selectedPlaceIndex = nil
+						-- now if we're the server then we want to send to the client the fact that we moved ...
+						if self.server then
+							for _,serverConn in ipairs(self.server.serverConns) do
+								serverConn:netcall{
+									'doMove',
+									playerIndex,
+									fromPlaceIndex,
+									toPlaceIndex,
+									-- TODO 
+									--done = block for all sends to finish
+								}
+							end
+						end
+					end
 				end
 				-- TODO I'm sure netrefl has this functionality...
 				if self.clientConn then
 					self.clientConn:netcall{
-						'doMove',
-						self.selectedPlace.index,
-						self.mouseOverPlace.index,
 						done = done,
+						'doMove',
+						playerIndex,
+						fromPlaceIndex,
+						toPlaceIndex,
 					}
 				else
 					done(self:doMove(
-						self.selectedPlace.index,
-						self.mouseOverPlace.index
+						playerIndex,
+						fromPlaceIndex,
+						toPlaceIndex
 					))
 				end
 			else
