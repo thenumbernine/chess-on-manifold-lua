@@ -102,6 +102,23 @@ function App:initGL()
 	}
 	
 	self:newGame()
+
+
+	if cmdline.listen then
+		self.connectWaiting = true
+		if type(cmdline.listen) == 'number' then
+			self.port = cmdline.listen	-- TODO allow listening on specific addresses
+		end
+		self:startRemote'listen'
+	elseif cmdline.connect then
+		local addr, port = cmdline.connect:match'^(.*):(%d+)$'
+		assert(addr, "failed to parse connect destination "..tostring(cmdline.connect))
+		port = assert(tonumber(port), "port expected number, found "..tostring(port))
+		self.connectWaiting = true
+		self.address = addr
+		self.port = port
+		self:startRemote'connect'
+	end
 end
 
 function App:newGame(boardGenerator)
@@ -404,24 +421,9 @@ print('historyIndex', self.historyIndex)
 			end
 			ig.luatableInputText('port', self, 'port')
 			if ig.igButton'Go' then
-				self.connectWaiting = true
 print(self.connectPopupOpen, self.address, self.port)
-				self.clientConn, self.server = self.netcom:start{
-					port = self.port,
-					threads = self.threads,
-					addr = self.connectPopupOpen == 'connect' and self.address or nil,
-					
-					-- misnomer ... this function inits immediately for the server
-					-- so what gets called when the server 
-					onConnect = function()
-print('got connection '..self.connectPopupOpen)
-						self.connectPopupOpen = nil
-						self.connectWaiting = nil
-						-- TODO wait for a client to connect ...
-					end,
-				}
-print('created netcom', self.clientConn, self.server)				
-				-- TODO popup 'waiting' ...
+				self:startRemote(self.connectPopupOpen)
+				self.connectPopupOpen = nil
 			end
 		end
 		ig.igEnd()
@@ -436,6 +438,26 @@ print('created netcom', self.clientConn, self.server)
 			ig.igEnd()
 		end
 	end
+end
+
+-- method = 'connect' or 'listen'
+function App:startRemote(method)
+	self.connectWaiting = true
+print('App:startRemote', method, 'port='..tostring(self.port), 'address='..tostring(self.address))
+	self.clientConn, self.server = self.netcom:start{
+		port = self.port,
+		threads = self.threads,
+		addr = method == 'connect' and self.address or nil,
+		
+		-- misnomer ... this function inits immediately for the server
+		-- so what gets called when the server 
+		onConnect = function()
+print('got connection '..method)
+			self.connectWaiting = nil
+			-- TODO wait for a client to connect ...
+		end,
+	}
+print('created netcom', self.clientConn, self.server)				
 end
 
 return App
