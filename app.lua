@@ -86,9 +86,30 @@ function App:initGL()
 	gl.glEnable(gl.GL_DEPTH_TEST)
 
 	self.netcom = NetCom()
-	
-	self.game = {}
-	self.netcom:addObject{name='game', object=self.game}
+	self.netcom:addClientToServerCall{
+		name = 'initPlayerConn',
+		args = {},
+		returnArgs = {
+			require 'netrefl.netfield'.netFieldNumber,
+		},
+		func = function(serverConn)
+			-- serverConn is either a localserverconn or remoteserverconn
+			-- this is called upon server init before onConnect returns,
+			-- so it is before self.server is defined
+			-- it's also called before serverConn is inserted into server.serverConns
+			self.remoteIndex = #serverConn.server.serverConns
+--DEBUG:print('netcom initPlayerConn func returning remoteIndex=', self.remoteIndex)
+			return self.remoteIndex
+		end,
+		postFunc = function(...)
+--DEBUG:print('netcom initPlayerConn done', ...)
+			--clientConn.playerIndexes = playerIndexes
+		end,
+	}
+	-- TODO assign each connecting player a player #
+	-- use a 'clientToServerCall' to call the server when a player moves
+	self.shared = {}
+	self.netcom:addObject{name='shared', object=self.shared}
 
 	self.address = 'localhost'
 	self.port = 12345
@@ -135,6 +156,8 @@ function App:newGame(boardGenerator)
 	self.history = table()
 	self.historyIndex = nil
 	self.board:refreshMoves()
+
+	self.shared.turn = 1
 end
 
 local result = vec4ub()
@@ -411,6 +434,7 @@ function App:updateGUI()
 		if self.board.inCheck then
 			str = str .. '... CHECK!'
 		end
+
 		if ig.igBeginMenu(str) then
 			ig.igEndMenu()
 		end
@@ -454,11 +478,22 @@ function App:startRemote(method)
 		addr = method == 'connect' and self.address or nil,
 		
 		-- misnomer ... this function inits immediately for the server
-		-- so what gets called when the server 
-		onConnect = function()
+		-- so what gets called when the server gets a client?
+		-- nothing yet I think ...
+		onConnect = function(clientConn)
 --DEBUG:print('App:startRemote got connection '..method)
 			self.connectWaiting = nil
-			-- TODO wait for a client to connect ...
+
+			clientConn:netcall{
+				'initPlayerConn',
+				done = function(...)
+--DEBUG:print('clientConn:netcall initPlayerConn done', ...)
+					--clientConn.playerIndexes = playerIndexes
+				end,
+		
+			}
+
+			self:newGame()
 		end,
 	}
 --DEBUG:print('App:startRemote created netcom', self.clientConn, self.server)				
