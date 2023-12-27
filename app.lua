@@ -258,6 +258,8 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 
 	-- move the piece to that square
 	fromPlace.piece:moveTo(toPlace)
+	
+	self.board:refreshMoves()
 
 	self.shared.turn = self.shared.turn % #self.players + 1
 --DEBUG:print('App:doMove self.shared.turn='..tostring(self.shared.turn))
@@ -324,9 +326,7 @@ function App:update()
 						end
 					
 						self.selectedMoves = nil
-						
-						self.board:refreshMoves()
-						
+							
 						self.selectedPlace = nil
 						self.selectedPlaceIndex = nil
 					end
