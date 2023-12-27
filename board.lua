@@ -15,7 +15,7 @@ end
 
 function Board:makePiece(args)
 	local cl = assert(args.class)
-	if not self.app.enablePieces[cl.name] then return end
+	if not self.app.shared.enablePieces[cl.name] then return end
 	args.class = nil
 	args.board = self
 	cl(args)
@@ -355,5 +355,11 @@ Board.generators:insert{Cube = function(app)
 
 	return board
 end}
+
+Board.generatorForName = {}
+for _,genpair in ipairs(Board.generators) do
+	local name, gen = next(genpair)
+	Board.generatorForName[name] = gen
+end
 
 return Board

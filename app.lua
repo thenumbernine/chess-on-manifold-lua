@@ -7,8 +7,9 @@ local Image = require 'image'
 local GLTex2D = require 'gl.tex2d'
 local ig = require 'imgui'
 local sdl = require 'ffi.req' 'sdl'
-local NetCom = require 'netrefl.netcom'
 local ThreadManager = require 'threadmanager'
+local NetCom = require 'netrefl.netcom'
+local netField = require 'netrefl.netfield'
 
 local Place = require 'place'
 local Piece = require 'piece'
@@ -79,17 +80,17 @@ function App:initGL()
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_BLEND)
-	
+
 	gl.glAlphaFunc(gl.GL_GREATER, .1)
 	gl.glEnable(gl.GL_ALPHA_TEST)
-	
+
 	gl.glEnable(gl.GL_DEPTH_TEST)
 
 	self.netcom = NetCom()
 	self.netcom:addClientToServerCall{
 		name = 'initPlayerConn',
 		returnArgs = {
-			require 'netrefl.netfield'.netFieldNumber,
+			netField.netFieldNumber,
 		},
 		func = function(serverConn)
 			-- serverConn is either a localserverconn or remoteserverconn
@@ -101,22 +102,32 @@ function App:initGL()
 			return remotePlayerIndex
 		end,
 	}
-	
+
 -- TODO automatically wrap member functions ...
+-- or a better TODO would be to just reflect the board pieces state ...
 	for _,f in ipairs{'addClientToServerCall', 'addServerToClientCall'} do
 		self.netcom[f](self.netcom, {
 			name = 'doMove',
 			args = {
-				require 'netrefl.netfield'.netFieldNumber,
-				require 'netrefl.netfield'.netFieldNumber,
-				require 'netrefl.netfield'.netFieldNumber,
+				netField.netFieldNumber,
+				netField.netFieldNumber,
+				netField.netFieldNumber,
 			},
 			returnArgs = {
-				require 'netrefl.netfield'.netFieldBoolean,
+				netField.netFieldBoolean,
 			},
 			func = function(serverConn, ...)
 	--DEBUG:print('netcom doMove', serverConn.index, ...)
 				return self:doMove(...)
+			end,
+		})
+		self.netcom[f](self.netcom, {
+			name = 'newGame',
+			args = {
+				netField.netFieldString,
+			},
+			func = function(serverConn, ...)
+				return self:newGame(...)
 			end,
 		})
 	end
@@ -125,9 +136,26 @@ function App:initGL()
 	-- use a 'clientToServerCall' to call the server when a player moves
 	self.shared = {
 		turn = 1,
+		enablePieces = {
+			king = true,	-- always
+			queen = true,
+			bishop = true,
+			knight = true,
+			rook = true,
+			pawn = true,
+			__netfields = {
+				king = netField.netFieldBoolean,	-- always
+				queen = netField.netFieldBoolean,
+				bishop = netField.netFieldBoolean,
+				knight = netField.netFieldBoolean,
+				rook = netField.netFieldBoolean,
+				pawn = netField.netFieldBoolean,
+			},
+		},
 		__netfields = {
-			-- doMove will handle turn
-			--turn = require 'netrefl.netfield'.netFieldNumber,
+			-- doMove will handle turns ... so this really isn't shared ...
+			--turn = netField.netFieldNumber,
+			enablePieces = netField.NetFieldObject,
 		},
 	}
 	self.netcom:addObject{name='shared', object=self.shared}
@@ -138,15 +166,7 @@ function App:initGL()
 
 	-- init gui vars:
 	self.transparentBoard = false
-	self.enablePieces = {
-		king = true,	-- always
-		queen = true,
-		bishop = true,
-		knight = true,
-		rook = true,
-		pawn = true,
-	}
-	
+
 	self:newGame()
 
 
@@ -167,7 +187,8 @@ function App:initGL()
 	end
 end
 
-function App:newGame(boardGenerator)
+function App:newGame(genname)
+	local boardGenerator = Board.generatorForName[genname]
 	--boardGenerator = boardGenerator or Board.Cube
 	boardGenerator = boardGenerator or select(2, next(Board.generators[1]))
 	-- per-game
@@ -202,9 +223,9 @@ end
 
 function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 --DEBUG:print('App:doMove', playerIndex, fromPlaceIndex, toPlaceIndex)
-	
+
 	-- if we're in a net game then only allow this if our remotePlayerIndex is the current turn ...
-	if playerIndex ~= self.shared.turn then 
+	if playerIndex ~= self.shared.turn then
 --DEBUG:print("App:doMove playerIndex doesn't match turn", self.shared.turn)
 		return false
 	end
@@ -217,17 +238,17 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 
 	local fromPiece = fromPlace.piece
 	if not fromPiece then
---DEBUG:print('...fromPlace had no piece')	
+--DEBUG:print('...fromPlace had no piece')
 		return false
 	end
-	
+
 	if fromPiece.player.index ~= self.shared.turn then
 --DEBUG:print('...fromPiece was of player '..tostring(fromPiece.player.index).." when it's player "..tostring(self.shared.turn).."'s turn")
 		return false
 	end
 
 	local fromMoves = fromPiece:getMoves()
-	
+
 	if not fromMoves then
 --DEBUG:print("...we have no selectedMoves")
 		return false
@@ -235,10 +256,10 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 
 	local toPlace = self.board.places[toPlaceIndex]
 	if not toPlace then
---DEBUG:print("...couldn't find toPlaceIndex "..tostring(toPlaceIndex))	
+--DEBUG:print("...couldn't find toPlaceIndex "..tostring(toPlaceIndex))
 		return false
 	end
-	
+
 	if not fromMoves then
 --DEBUG:print("...we have no selectedMoves")
 		return false
@@ -258,7 +279,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 
 	-- move the piece to that square
 	fromPlace.piece:moveTo(toPlace)
-	
+
 	self.board:refreshMoves()
 
 	self.shared.turn = self.shared.turn % #self.players + 1
@@ -268,7 +289,7 @@ end
 
 local result = vec4ub()
 function App:update()
-	
+
 	self.threads:update()
 	-- why not just make this another update thread?
 	if self.server then
@@ -283,13 +304,13 @@ function App:update()
 	j = self.height - j - 1
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
-	
+
 		self.mouseOverPlace, self.mouseOverPlaceIndex = self.board:getPlaceForRGB(result:unpack())
 		if self.mouse.leftClick then
 			if self.selectedPlace
 			and self.selectedPlace.piece
 			and self.selectedPlace.piece.player.index == self.shared.turn
-			and self.selectedMoves 
+			and self.selectedMoves
 			and self.selectedMoves:find(self.mouseOverPlace)
 			then
 				-- move the piece
@@ -298,35 +319,35 @@ function App:update()
 				local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
 				local done = function(result)
 --DEBUG:print('doMove done result', result)
-					if not result then 
+					if not result then
 						-- failed move -- deselect
 						self.selectedMoves = nil
 						self.selectedPlace = nil
 						self.selectedPlaceIndex = nil
 					else
 						-- successful move ...
-				
+
 						-- now if we're the server then we want to send to the client the fact that we moved ...
 						if self.server then
 							for _,serverConn in ipairs(self.server.serverConns) do
---DEBUG:print('sending serverConn doMove')					
+--DEBUG:print('sending serverConn doMove')
 								serverConn:netcall{
 									'doMove',
 									playerIndex,
 									fromPlaceIndex,
 									toPlaceIndex,
-									-- TODO 
+									-- TODO
 									--done = block for all sends to finish
 								}
 							end
 						else
 						-- if we're not the server then we still have to do the move ourselves...
 							local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
---DEBUG:print('after remote doMove, local doMove result', result)						
+--DEBUG:print('after remote doMove, local doMove result', result)
 						end
-					
+
 						self.selectedMoves = nil
-							
+
 						self.selectedPlace = nil
 						self.selectedPlaceIndex = nil
 					end
@@ -381,7 +402,7 @@ function App:update()
 					end
 				else
 					self.selectedMoves = nil
-					
+
 					self.selectedPlace = nil
 					self.selectedPlaceIndex = nil
 				end
@@ -398,7 +419,7 @@ function App:update()
 			then
 				self.forecastPlace = self.mouseOverPlace
 				self.forecastBoard = self.board:clone()
-				
+
 				local forecastSelPiece = self.forecastBoard.places[self.selectedPlaceIndex].piece
 				if forecastSelPiece then
 					forecastSelPiece:moveTo(self.forecastBoard.places[self.mouseOverPlaceIndex])
@@ -414,8 +435,8 @@ function App:update()
 	-- draw
 	gl.glClearColor(.5, .5, .5, 1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-	
-	local drawBoard 
+
+	local drawBoard
 	if self.historyIndex then
 		drawBoard = self.history[self.historyIndex]
 	else
@@ -437,24 +458,24 @@ function App:update()
 			local by = .45
 			local arrowWidth = .2
 
-			-- TODO draw arrow 
+			-- TODO draw arrow
 			local pa = drawBoard.places[attack[1].placeIndex]
 			local pb = drawBoard.places[attack[2].placeIndex]
 			local dir = (pb.center - pa.center):normalize()
 			local right = dir:cross(pa.normal):normalize()
-			
+
 			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pa.center + ax * right + ay * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pb.center + bx * right - by * dir + .05 * pa.normal):unpack())
-			
+
 			gl.glVertex3f((pb.center + bx * right - by * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pb.center - bx * right - by * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
-			
+
 			gl.glVertex3f((pb.center + arrowWidth * right - by * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pb.center - arrowWidth * right - by * dir + .05 * pa.normal):unpack())
 			gl.glVertex3f((pb.center - (by - arrowWidth) * dir + .05 * pa.normal):unpack())
-			
+
 			--gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
 			--gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
 		end
@@ -469,7 +490,7 @@ function App:update()
 			place:drawHighlight(0,1,0, .5)
 		end
 	end
-	
+
 	if self.mouseOverPlace then
 		self.mouseOverPlace:drawHighlight(0,0,1, .3)
 	end
@@ -510,7 +531,23 @@ function App:updateGUI()
 			for _,genpair in ipairs(Board.generators) do
 				local name, generator = next(genpair)
 				if ig.igButton('New Game: '..name) then
-					self:newGame(generator)
+
+					-- TODO same with doMove ...
+					-- sort of ...
+					-- only server is allowed to call this
+					if self.server then
+--DEBUG:print('App:updateGUI netcall newGame', name)
+						self:newGame(name)
+						for _,serverConn in ipairs(self.server.serverConns) do
+							serverConn:netcall{
+								'newGame',
+								name
+							}
+						end
+					else
+--DEBUG:print('App:updateGUI local newGame', name)
+						self:newGame(name)
+					end
 				end
 			end
 			ig.igSeparator()
@@ -526,11 +563,11 @@ function App:updateGUI()
 		if ig.igBeginMenu'Options' then
 			ig.igSeparator()
 			ig.igText'disable...'
-			ig.luatableCheckbox('pawns', self.enablePieces, 'pawn')
-			ig.luatableCheckbox('bishops', self.enablePieces, 'bishop')
-			ig.luatableCheckbox('knights', self.enablePieces, 'knight')
-			ig.luatableCheckbox('rooks', self.enablePieces, 'rook')
-			ig.luatableCheckbox('queens', self.enablePieces, 'queen')
+			ig.luatableCheckbox('pawns', self.shared.enablePieces, 'pawn')
+			ig.luatableCheckbox('bishops', self.shared.enablePieces, 'bishop')
+			ig.luatableCheckbox('knights', self.shared.enablePieces, 'knight')
+			ig.luatableCheckbox('rooks', self.shared.enablePieces, 'rook')
+			ig.luatableCheckbox('queens', self.shared.enablePieces, 'queen')
 			ig.igEndMenu()
 		end
 		if ig.igBeginMenu'View' then
@@ -547,7 +584,7 @@ function App:updateGUI()
 					end
 				end
 			end
-			
+
 			for i=1,2 do
 				if ig.igButton(({'<', '>'})[i]) then
 					local delta = 2*i-1
@@ -577,7 +614,7 @@ function App:updateGUI()
 		end
 		ig.igEndMainMenuBar()
 	end
-	
+
 	if self.connectPopupOpen then
 		ig.igPushID_Str'Connect Window'
 		if ig.igBegin(self.connectPopupOpen) then
@@ -613,7 +650,7 @@ function App:startRemote(method)
 		port = self.port,
 		threads = self.threads,
 		addr = method == 'connect' and self.address or nil,
-		
+
 		-- misnomer ... this function inits immediately for the server
 		-- so what gets called when the server gets a client?
 		-- nothing yet I think ...
@@ -623,7 +660,7 @@ function App:startRemote(method)
 			-- you HAVE TO assign this here upon onConnect:
 			-- it doesn't return.
 			self.clientConn = clientConn
-			
+
 			self.connectWaiting = nil
 
 			clientConn:netcall{
@@ -638,7 +675,7 @@ function App:startRemote(method)
 						self:rotateView(3, 2)
 					end
 				end,
-		
+
 			}
 
 			self:newGame()
@@ -646,7 +683,7 @@ function App:startRemote(method)
 	}
 --DEBUG:print('App:startRemote created netcom')
 --DEBUG:print('self.clientConn', self.clientConn)
---DEBUG:print('self.server', self.server)				
+--DEBUG:print('self.server', self.server)
 end
 
 return App
