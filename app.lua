@@ -270,12 +270,16 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 
+	local prevBoard = self.board:clone():refreshMoves()
+
+	-- don't allow moving yourself into check
+	local newBoard = self.board:clone()
+	newBoard.places[fromPlaceIndex].piece:moveTo(newBoard.places[toPlaceIndex])
+	newBoard:refreshMoves()
+	if newBoard.checks[playerIndex] then return false end
 
 	-- TODO do this client-side ...
-	self.history:insert(
-		self.board:clone()
-			:refreshMoves()
-	)
+	self.history:insert(prevBoard)
 
 	-- move the piece to that square
 	fromPlace.piece:moveTo(toPlace)
@@ -394,7 +398,7 @@ function App:update()
 									forecastSelPiece:moveTo(forecastBoard.places[destPlaceIndex])
 								end
 								forecastBoard:refreshMoves()
-								return not forecastBoard.inCheck
+								return not forecastBoard.checks[self.shared.turn]
 							end)
 						else
 							self.selectedMoves = nil
@@ -603,7 +607,7 @@ function App:updateGUI()
 			ig.igEndMenu()
 		end
 		local str = '...  '..self.colors[self.shared.turn].."'s turn"
-		if self.board.inCheck then
+		if self.board.checks[self.shared.turn] then
 			str = str .. '... CHECK!'
 		end
 		if self.remotePlayerIndex then

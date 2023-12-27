@@ -64,6 +64,7 @@ function Piece:draw()
 end
 
 -- returns a table-of-places of where the piece on this place can move
+-- friendlyFire = true means consider friendly-fire attacks.  this is useful for generating the help arrow annotations.
 function Piece:getMoves(friendlyFire)
 	local place = assert(self.board.places[self.placeIndex])	-- or just nil or {} for no-place?
 	--assert(Place:isa(place))

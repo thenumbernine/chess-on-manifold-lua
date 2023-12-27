@@ -152,7 +152,7 @@ end
 
 -- calculate all moves for all pieces
 function Board:refreshMoves()
-	self.inCheck = false
+	self.checks = {}
 	self.attacks = table()
 	for _,place in ipairs(self.places) do
 		local piece = place.piece
@@ -167,7 +167,7 @@ function Board:refreshMoves()
 					if not friendly
 					and Piece.King:isa(targetPiece)
 					then
-						self.inCheck = true
+						self.checks[targetPiece.player.index] = true
 					end
 				end
 			end
