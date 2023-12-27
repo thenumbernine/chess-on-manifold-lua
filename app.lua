@@ -100,10 +100,6 @@ function App:initGL()
 --DEBUG:print('netcom initPlayerConn func returning remotePlayerIndex=', remotePlayerIndex)
 			return remotePlayerIndex
 		end,
-		postFunc = function(...)
---DEBUG:print('netcom initPlayerConn done', ...)
-			--clientConn.playerIndexes = playerIndexes
-		end,
 	}
 	
 -- TODO automatically wrap member functions ...
@@ -316,6 +312,7 @@ function App:update()
 						-- now if we're the server then we want to send to the client the fact that we moved ...
 						if self.server then
 							for _,serverConn in ipairs(self.server.serverConns) do
+--DEBUG:print('sending serverConn doMove')					
 								serverConn:netcall{
 									'doMove',
 									playerIndex,
@@ -330,6 +327,7 @@ function App:update()
 				end
 				-- TODO I'm sure netrefl has this functionality...
 				if self.clientConn then
+--DEBUG:print('sending clientConn doMove')					
 					self.clientConn:netcall{
 						done = done,
 						'doMove',
@@ -614,6 +612,11 @@ function App:startRemote(method)
 		-- nothing yet I think ...
 		onConnect = function(clientConn)
 --DEBUG:print('App:startRemote got connection '..method)
+			-- TODO BIG FLAW IN NETREFL's DESIGN
+			-- you HAVE TO assign this here upon onConnect:
+			-- it doesn't return.
+			self.clientConn = clientConn
+			
 			self.connectWaiting = nil
 
 			clientConn:netcall{
@@ -634,7 +637,9 @@ function App:startRemote(method)
 			self:newGame()
 		end,
 	}
---DEBUG:print('App:startRemote created netcom', self.clientConn, self.server)				
+--DEBUG:print('App:startRemote created netcom')
+--DEBUG:print('self.clientConn', self.clientConn)
+--DEBUG:print('self.server', self.server)				
 end
 
 return App
