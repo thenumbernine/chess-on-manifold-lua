@@ -86,6 +86,10 @@ function App:initGL()
 	gl.glEnable(gl.GL_DEPTH_TEST)
 
 	self.netcom = NetCom()
+	
+	self.game = {}
+	self.netcom:addObject{name='game', object=self.game}
+
 	self.address = 'localhost'
 	self.port = 12345
 	self.threads = ThreadManager()
@@ -392,7 +396,7 @@ function App:updateGUI()
 					self.historyIndex = self.historyIndex or #self.history + 1
 					self.historyIndex = math.clamp(self.historyIndex + delta, 1, #self.history + 1)
 					if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
-print('historyIndex', self.historyIndex)
+--DEBUG:print('historyIndex', self.historyIndex)
 				end
 				if i == 1 then
 					ig.igSameLine()
@@ -421,7 +425,7 @@ print('historyIndex', self.historyIndex)
 			end
 			ig.luatableInputText('port', self, 'port')
 			if ig.igButton'Go' then
-print(self.connectPopupOpen, self.address, self.port)
+--DEBUG:print(self.connectPopupOpen, self.address, self.port)
 				self:startRemote(self.connectPopupOpen)
 				self.connectPopupOpen = nil
 			end
@@ -443,7 +447,7 @@ end
 -- method = 'connect' or 'listen'
 function App:startRemote(method)
 	self.connectWaiting = true
-print('App:startRemote', method, 'port='..tostring(self.port), 'address='..tostring(self.address))
+--DEBUG:print('App:startRemote', method, 'port='..tostring(self.port), 'address='..tostring(self.address))
 	self.clientConn, self.server = self.netcom:start{
 		port = self.port,
 		threads = self.threads,
@@ -452,12 +456,12 @@ print('App:startRemote', method, 'port='..tostring(self.port), 'address='..tostr
 		-- misnomer ... this function inits immediately for the server
 		-- so what gets called when the server 
 		onConnect = function()
-print('got connection '..method)
+--DEBUG:print('App:startRemote got connection '..method)
 			self.connectWaiting = nil
 			-- TODO wait for a client to connect ...
 		end,
 	}
-print('created netcom', self.clientConn, self.server)				
+--DEBUG:print('App:startRemote created netcom', self.clientConn, self.server)				
 end
 
 return App
