@@ -292,8 +292,8 @@ function App:update()
 			then
 				-- move the piece
 				local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
-				local fromPlaceIndex = self.selectedPlace.index
-				local toPlaceIndex = self.mouseOverPlace.index
+				local fromPlaceIndex = assert(self.selectedPlace.index, "couldn't find fromPlaceIndex")
+				local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
 				local done = function(result)
 --DEBUG:print('doMove done result', result)
 					if not result then 
@@ -303,13 +303,7 @@ function App:update()
 						self.selectedPlaceIndex = nil
 					else
 						-- successful move ...
-						self.selectedMoves = nil
-						
-						self.board:refreshMoves()
-						
-						self.selectedPlace = nil
-						self.selectedPlaceIndex = nil
-					
+				
 						-- now if we're the server then we want to send to the client the fact that we moved ...
 						if self.server then
 							for _,serverConn in ipairs(self.server.serverConns) do
@@ -323,37 +317,30 @@ function App:update()
 									--done = block for all sends to finish
 								}
 							end
+						else
+						-- if we're not the server then we still have to do the move ourselves...
+							local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
+--DEBUG:print('after remote doMove, local doMove result', result)						
 						end
+					
+						self.selectedMoves = nil
+						
+						self.board:refreshMoves()
+						
+						self.selectedPlace = nil
+						self.selectedPlaceIndex = nil
 					end
 				end
 				-- TODO I'm sure netrefl has this functionality...
 				if self.clientConn then
-					if self.server then
 --DEBUG:print('server sending clientConn doMove')
-						self.clientConn:netcall{
-							done = done,
-							'doMove',
-							playerIndex,
-							fromPlaceIndex,
-							toPlaceIndex,
-						}
-					else
---DEBUG:print('client sending clientConn doMove')
-						-- first try
-						if self:doMove(
-							playerIndex,
-							fromPlaceIndex,
-							toPlaceIndex
-						) then
-							self.clientConn:netcall{
-								done = done,
-								'doMove',
-								playerIndex,
-								fromPlaceIndex,
-								toPlaceIndex,
-							}
-						end
-					end
+					self.clientConn:netcall{
+						done = done,
+						'doMove',
+						playerIndex,
+						fromPlaceIndex,
+						toPlaceIndex,
+					}
 				else
 --DEBUG:print('local doMove')
 					done(self:doMove(
