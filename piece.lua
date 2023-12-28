@@ -73,15 +73,13 @@ function Piece:getMoves(friendlyFire)
 	local moves = table()
 
 	-- now traverse the manifold, stepping in each direction
-	local function iterate(draw, place, prevPlace, step, already, state)
+	local function iterate(blocking, place, prevPlace, step, already, state)
 --DEBUG:assert(Place:isa(place))
 --DEBUG:assert(Place:isa(prevPlace))
 		if already[place] then return end
 		already[place] = true
 
-		-- TODO "draw" should be "checkTakePiece" or something
-		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
-		if draw or draw == nil then
+		if blocking then
 
 			-- if we hit a friendly then stop movement
 			if place.piece and place.piece.player == startPlace.piece.player
@@ -120,7 +118,7 @@ function Piece:getMoves(friendlyFire)
 		-- yields:
 		-- 1st: neighborhood index
 		-- 2nd: mark or not
-		for moveEdgeIndex, draw in self:moveStep{
+		for moveEdgeIndex, blocking in self:moveStep{
 			place = place,
 			edgeIndex = edgeIndex-1,
 			step = step,
@@ -130,7 +128,7 @@ function Piece:getMoves(friendlyFire)
 			-- now pick the piece
 			local edge = place.edges[moveEdgeIndex+1]
 			if edge and self.board.places[edge.placeIndex] then
-				iterate(draw, self.board.places[edge.placeIndex], place, step+1, already, state)
+				iterate(blocking, self.board.places[edge.placeIndex], place, step+1, already, state)
 			end
 		end
 	end
@@ -139,7 +137,7 @@ function Piece:getMoves(friendlyFire)
 	-- 1st: neighborhood index (0-based)
 	-- 2nd: mark or not
 	-- 3rd: is forwarded as state variables to 'moveStep'
-	for moveEdgeIndex, draw, state in self:moveStart{
+	for moveEdgeIndex, blocking, state in self:moveStart{
 		place = startPlace,
 		friendlyFire = friendlyFire,
 	} do
@@ -149,7 +147,7 @@ function Piece:getMoves(friendlyFire)
 			if nextPlace then
 				local already = {}
 				already[startPlace] = true
-				iterate(draw, nextPlace, startPlace, 1, already, state)
+				iterate(blocking, nextPlace, startPlace, 1, already, state)
 			end
 		end
 	end
@@ -252,7 +250,7 @@ function Pawn:moveStep(args)
 			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
 			if not neighbor then return end
 			if neighbor.piece then return end	-- ... unless we let pawns capture forward 2 tiles ...
-			coroutine.yield(destedgeindex)
+			coroutine.yield(destedgeindex, true)
 		else
 		-- diagonal attack...
 			if step > 1 then return end
@@ -260,12 +258,7 @@ function Pawn:moveStep(args)
 			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
 			if not neighbor then return end
 			if neighbor.piece then
-				--if neighbor.piece.player ~= self.player then -- ... or if we're allowing self-capture ...
-					coroutine.yield(
-						destedgeindex,
-						true
-					)
-				--end
+				coroutine.yield(destedgeindex, true)
 			else
 				-- else -
 				-- TODO if no piece - then look if a pawn just hopped over this last turn ... if so then allow en piss ant
@@ -375,7 +368,7 @@ function Rook:moveStart(args)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		for i=0,nedges-1 do
-			coroutine.yield(i)
+			coroutine.yield(i, true)
 		end
 	end)
 end
@@ -388,8 +381,8 @@ function Rook:moveStep(args)
 	return coroutine.wrap(function()
 		for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
 			coroutine.yield(
-				(edgeindex + ofs) % nedges
-				--, step % 2 == 0	-- ex: rook that must change color
+				(edgeindex + ofs) % nedges,
+				true--, step % 2 == 0	-- ex: rook that must change tile color
 			)
 		end
 	end)
@@ -425,7 +418,10 @@ function Queen:moveStep(args)
 	return coroutine.wrap(function()
 		if lr == 0 then	-- rook move
 			for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
-				coroutine.yield((edgeindex + ofs) % nedges)
+				coroutine.yield(
+					(edgeindex + ofs) % nedges,
+					true
+				)
 			end
 		else	-- bishop move
 			if step % 2 == 0 then
