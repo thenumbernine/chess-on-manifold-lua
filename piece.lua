@@ -295,6 +295,7 @@ function Pawn:moveStep(args)
 						and piece.lastMove.state == 0	-- it was a straight move, not a diagonal capture
 						and #piece.lastMove == 3			-- it went 2 tiles
 						and piece.lastMove[2].placeIndex == nextPlace.index
+						-- and the piece was the last-moved-piece of this player
 						then
 							enpessant = true
 							break
@@ -311,8 +312,29 @@ function Pawn:moveStep(args)
 	end)
 end
 
-function Pawn:moveTo(...)
-	Pawn.super.moveTo(self, ...)
+function Pawn:moveTo(movePath)
+	local to = self.board.places[movePath:last().placeIndex]
+	-- if the move is an en-pessant ...
+	-- then make sure to eat the piece
+	if to.piece == nil then
+		for _,p in ipairs(self.board.places) do
+			local piece = p.piece
+			if piece 
+			and Pawn:isa(piece) 
+			and piece.player ~= self.player
+			and piece.lastMove
+			and piece.lastMove.state == 0	-- it was a straight move, not a diagonal capture
+			and #piece.lastMove == 3			-- it went 2 tiles
+			and piece.lastMove[2].placeIndex == to.index
+			-- and the piece was the last-moved-piece of this player
+			then
+				piece.placeIndex = nil
+				p.piece = nil
+			end
+		end
+	end
+
+	Pawn.super.moveTo(self, movePath)
 	-- TODO here - if we ended up moving 2 squares then save our from and to
 	-- and esp the square between
 	-- and, for the length of 1 move, save that as the en-pessant square
