@@ -120,7 +120,12 @@ function Piece:getMoves(friendlyFire)
 		-- yields:
 		-- 1st: neighborhood index
 		-- 2nd: mark or not
-		for moveEdgeIndex, draw in self:moveStep(place, edgeIndex-1, step, state) do
+		for moveEdgeIndex, draw in self:moveStep{
+			place = place,
+			edgeIndex = edgeIndex-1,
+			step = step,
+			state = state,
+		} do
 			-- now pick the piece
 			local edge = place.edges[moveEdgeIndex+1]
 			if edge and self.board.places[edge.placeIndex] then
@@ -196,6 +201,10 @@ end
 --[[
 args:
 	place
+yields:
+	moveEdgeIndex, = 0-based edge that we are considering moving to
+	blocking, = true for if this is a step that can capture / be blocked
+	state
 --]]
 function Pawn:moveStart(args)
 	local place = args.place
@@ -223,7 +232,11 @@ args:
 	step
 	state
 --]]
-function Pawn:moveStep(place, edgeindex, step, lr)
+function Pawn:moveStep(args)
+	local place = args.place
+	local edgeindex = args.edgeIndex
+	local step = args.step
+	local lr = args.state
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		if lr == 0 then
@@ -284,7 +297,11 @@ function Bishop:moveStart(args)
 	end)
 end
 
-function Bishop:moveStep(place, edgeindex, step, lr)
+function Bishop:moveStep(args)
+	local place = args.place
+	local edgeindex = args.edgeIndex
+	local step = args.step
+	local lr = args.state
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		if step % 2 == 0 then
@@ -322,7 +339,11 @@ function Knight:moveStart(args)
 	end)
 end
 
-function Knight:moveStep(place, edgeindex, step, lr)
+function Knight:moveStep(args)
+	local place = args.place
+	local edgeindex = args.edgeIndex
+	local step = args.step
+	local lr = args.state
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		if step < 2 then
@@ -355,7 +376,10 @@ function Rook:moveStart(args)
 	end)
 end
 
-function Rook:moveStep(place, edgeindex, step)
+function Rook:moveStep(args)
+	local place = args.place
+	local edgeindex = args.edgeIndex
+	local step = args.step
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		for ofs=math.floor(nedges/2),math.ceil(nedges/2) do
@@ -388,7 +412,11 @@ function Queen:moveStart(args)
 	end)
 end
 
-function Queen:moveStep(place, edgeindex, step, lr)
+function Queen:moveStep(args)
+	local place = args.place
+	local edgeindex = args.edgeIndex
+	local step = args.step
+	local lr = args.state
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		if lr == 0 then	-- rook move
@@ -445,7 +473,11 @@ function King:moveStart(args)
 	end)
 end
 
-function King:moveStep(place, edgeindex, step, lr)
+function King:moveStep(args)
+	local place = args.place
+	local edgeindex = args.edgeIndex
+	local step = args.step
+	local lr = args.state
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		assert(step > 0)
