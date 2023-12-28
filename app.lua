@@ -311,71 +311,82 @@ function App:update()
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
 
 		self.mouseOverPlace, self.mouseOverPlaceIndex = self.board:getPlaceForRGB(result:unpack())
+		-- if we are clicking ...
 		if self.mouse.leftClick then
+			-- if we have already selected a piece ....
 			if self.selectedPlace
 			and self.selectedPlace.piece
-			and self.selectedPlace.piece.player.index == self.shared.turn
-			and self.selectedMoves
-			and self.selectedMoves:find(self.mouseOverPlace)
 			then
-				-- move the piece
-				local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
-				local fromPlaceIndex = assert(self.selectedPlace.index, "couldn't find fromPlaceIndex")
-				local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
-				local done = function(result)
---DEBUG:print('doMove done result', result)
-					if not result then
-						-- failed move -- deselect
-						self.selectedMoves = nil
-						self.selectedPlace = nil
-						self.selectedPlaceIndex = nil
-					else
-						-- successful move ...
-
-						-- now if we're the server then we want to send to the client the fact that we moved ...
-						if self.server then
-							for _,serverConn in ipairs(self.server.serverConns) do
---DEBUG:print('sending serverConn doMove')
-								serverConn:netcall{
-									'doMove',
-									playerIndex,
-									fromPlaceIndex,
-									toPlaceIndex,
-									-- TODO
-									--done = block for all sends to finish
-								}
-							end
+				-- if its ours and we're clicking a valid square ... 
+				if self.selectedPlace.piece.player.index == self.shared.turn
+				and self.selectedMoves
+				and self.selectedMoves:find(self.mouseOverPlace)
+				then
+					-- move the piece
+					local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
+					local fromPlaceIndex = assert(self.selectedPlace.index, "couldn't find fromPlaceIndex")
+					local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
+					local done = function(result)
+	--DEBUG:print('doMove done result', result)
+						if not result then
+							-- failed move -- deselect
+							self.selectedMoves = nil
+							self.selectedPlace = nil
+							self.selectedPlaceIndex = nil
 						else
-						-- if we're not the server then we still have to do the move ourselves...
-							local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
---DEBUG:print('after remote doMove, local doMove result', result)
+							-- successful move ...
+
+							-- now if we're the server then we want to send to the client the fact that we moved ...
+							if self.server then
+								for _,serverConn in ipairs(self.server.serverConns) do
+	--DEBUG:print('sending serverConn doMove')
+									serverConn:netcall{
+										'doMove',
+										playerIndex,
+										fromPlaceIndex,
+										toPlaceIndex,
+										-- TODO
+										--done = block for all sends to finish
+									}
+								end
+							else
+							-- if we're not the server then we still have to do the move ourselves...
+								local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
+	--DEBUG:print('after remote doMove, local doMove result', result)
+							end
+
+							self.selectedMoves = nil
+
+							self.selectedPlace = nil
+							self.selectedPlaceIndex = nil
 						end
-
-						self.selectedMoves = nil
-
-						self.selectedPlace = nil
-						self.selectedPlaceIndex = nil
 					end
-				end
-				-- TODO I'm sure netrefl has this functionality...
-				if self.clientConn then
---DEBUG:print('server sending clientConn doMove')
-					self.clientConn:netcall{
-						done = done,
-						'doMove',
-						playerIndex,
-						fromPlaceIndex,
-						toPlaceIndex,
-					}
+					-- TODO I'm sure netrefl has this functionality...
+					if self.clientConn then
+	--DEBUG:print('server sending clientConn doMove')
+						self.clientConn:netcall{
+							done = done,
+							'doMove',
+							playerIndex,
+							fromPlaceIndex,
+							toPlaceIndex,
+						}
+					else
+	--DEBUG:print('local doMove')
+						done(self:doMove(
+							playerIndex,
+							fromPlaceIndex,
+							toPlaceIndex
+						))
+					end
 				else
---DEBUG:print('local doMove')
-					done(self:doMove(
-						playerIndex,
-						fromPlaceIndex,
-						toPlaceIndex
-					))
+					-- else deselect it
+					self.selectedMoves = nil
+					self.selectedPlace = nil
+					self.selectedPlaceIndex = nil
 				end
 			else
+				-- if we don't have a piece selected ... try to select it
 				if self.mouseOverPlace
 				and self.mouseOverPlace.piece
 				and self.mouseOverPlace ~= self.selectedPlace
@@ -407,7 +418,6 @@ function App:update()
 					end
 				else
 					self.selectedMoves = nil
-
 					self.selectedPlace = nil
 					self.selectedPlaceIndex = nil
 				end

@@ -125,6 +125,7 @@ function Piece:getMoves(friendlyFire)
 			edgeIndex = edgeIndex-1,
 			step = step,
 			state = state,
+			friendlyFire = friendlyFire,
 		} do
 			-- now pick the piece
 			local edge = place.edges[moveEdgeIndex+1]
@@ -140,6 +141,7 @@ function Piece:getMoves(friendlyFire)
 	-- 3rd: is forwarded as state variables to 'moveStep'
 	for moveEdgeIndex, draw, state in self:moveStart{
 		place = startPlace,
+		friendlyFire = friendlyFire,
 	} do
 		local edge = startPlace.edges[moveEdgeIndex+1]
 		if edge then
@@ -212,6 +214,7 @@ function Pawn:moveStart(args)
 	return coroutine.wrap(function()
 		for lr=-1,1 do
 			if lr == 0 then
+				-- move forward if nothing is there ...
 				local neighbor = self.board.places[place.edges[self.dir].placeIndex]
 				if neighbor
 				and not neighbor.piece
@@ -219,6 +222,7 @@ function Pawn:moveStart(args)
 					coroutine.yield(self.dir-1, true, lr)
 				end
 			else
+				-- start our diagonal step for captures
 				coroutine.yield(self.dir-1, false, lr)
 			end
 		end
@@ -256,12 +260,12 @@ function Pawn:moveStep(args)
 			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
 			if not neighbor then return end
 			if neighbor.piece then
-				if neighbor.piece.player ~= self.player then -- ... or if we're allowing self-capture ...
+				--if neighbor.piece.player ~= self.player then -- ... or if we're allowing self-capture ...
 					coroutine.yield(
 						destedgeindex,
 						true
 					)
-				end
+				--end
 			else
 				-- else -
 				-- TODO if no piece - then look if a pawn just hopped over this last turn ... if so then allow en piss ant
