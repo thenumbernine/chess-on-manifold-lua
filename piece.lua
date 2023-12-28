@@ -96,10 +96,7 @@ function Piece:getMoves(friendlyFire)
 			movePath:insert{
 				place = place,
 			}
-			moves:insert{
-				path = movePath,
-				dest = assert(place),
-			}
+			moves:insert(movePath)
 
 			-- same, unfriendly
 			if place.piece then

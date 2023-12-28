@@ -266,7 +266,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 
-	if not fromMoves:find(nil, function(move) return move.path:last().place == toPlace end) then
+	if not fromMoves:find(nil, function(move) return move:last().place == toPlace end) then
 --DEBUG:print("...couldn't find toPlace in selectedMoves")
 		return false
 	end
@@ -320,7 +320,7 @@ function App:update()
 				-- if its ours and we're clicking a valid square ... 
 				if self.selectedPlace.piece.player.index == self.shared.turn
 				and self.selectedMoves
-				and self.selectedMoves:find(nil, function(move) return move.path:last().place == self.mouseOverPlace end)
+				and self.selectedMoves:find(nil, function(move) return move:last().place == self.mouseOverPlace end)
 				then
 					-- move the piece
 					local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
@@ -402,7 +402,7 @@ function App:update()
 							-- if we dont want to allow manual capturing of the king...
 							-- ... then filter out all moves that won't end the check
 							self.selectedMoves = self.selectedMoves:filter(function(move)
-								local place = assert(move.path:last().place)
+								local place = assert(move:last().place)
 								local destPlaceIndex = place.index
 
 								local forecastBoard = self.board:clone()
@@ -428,7 +428,7 @@ function App:update()
 		if self.selectedPlace
 		and self.selectedPlace.piece
 		and self.mouseOverPlace
-		--and self.selectedMoves:find(nil, function(move) return move.path:last().place == self.mouseOverPlace end)
+		--and self.selectedMoves:find(nil, function(move) return move:last().place == self.mouseOverPlace end)
 		then
 			if not self.forecastPlace
 			or self.forecastPlace ~= self.mouseOverPlace
@@ -505,7 +505,7 @@ function App:update()
 	end
 	if self.selectedMoves then
 		for _,move in ipairs(self.selectedMoves) do
-			move.path:last().place:drawHighlight(0,1,0, .5)
+			move:last().place:drawHighlight(0,1,0, .5)
 		end
 	end
 
