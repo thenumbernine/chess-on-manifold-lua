@@ -117,7 +117,7 @@ function App:initGL()
 				netField.netFieldBoolean,
 			},
 			func = function(serverConn, ...)
-	--DEBUG:print('netcom doMove', serverConn.index, ...)
+--DEBUG:print('netcom doMove', serverConn.index, ...)
 				return self:doMove(...)
 			end,
 		})
@@ -274,19 +274,20 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 
-	local prevBoard = self.board:clone():refreshMoves()
-
 	-- don't allow moving yourself into check
 	local newBoard = self.board:clone()
-	newBoard.places[fromPlaceIndex].piece:moveTo(movePath)
+	newBoard.places[fromPlaceIndex].piece:move(movePath)
 	newBoard:refreshMoves()
 	if newBoard.checks[playerIndex] then return false end
 
 	-- TODO do this client-side ...
+	local prevBoard = self.board:clone():refreshMoves()
 	self.history:insert(prevBoard)
 
 	-- move the piece to that square
-	fromPlace.piece:moveTo(movePath)
+--DEBUG:print('App:doMove self.board.lastMovedPlaceIndex before', self.board.lastMovedPlaceIndex)
+	fromPlace.piece:move(movePath)
+--DEBUG:print('App:doMove self.board.lastMovedPlaceIndex after', self.board.lastMovedPlaceIndex)
 
 	self.board:refreshMoves()
 
@@ -323,6 +324,7 @@ function App:update()
 				-- if its ours and we're clicking a valid square ... 
 				if self.selectedPlace.piece.player.index == self.shared.turn
 				and self.selectedMoves
+				and self.mouseOverPlace
 				and self.selectedMoves:find(nil, function(move) return move:last().placeIndex == self.mouseOverPlace.index end)
 				then
 					-- move the piece
@@ -330,7 +332,7 @@ function App:update()
 					local fromPlaceIndex = assert(self.selectedPlace.index, "couldn't find fromPlaceIndex")
 					local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
 					local done = function(result)
-	--DEBUG:print('doMove done result', result)
+--DEBUG:print('doMove done result', result)
 						if not result then
 							-- failed move -- deselect
 							self.selectedMoves = nil
@@ -342,7 +344,7 @@ function App:update()
 							-- now if we're the server then we want to send to the client the fact that we moved ...
 							if self.server then
 								for _,serverConn in ipairs(self.server.serverConns) do
-	--DEBUG:print('sending serverConn doMove')
+--DEBUG:print('sending serverConn doMove')
 									serverConn:netcall{
 										'doMove',
 										playerIndex,
@@ -355,7 +357,7 @@ function App:update()
 							else
 							-- if we're not the server then we still have to do the move ourselves...
 								local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
-	--DEBUG:print('after remote doMove, local doMove result', result)
+--DEBUG:print('after remote doMove, local doMove result', result)
 							end
 
 							self.selectedMoves = nil
@@ -366,7 +368,7 @@ function App:update()
 					end
 					-- TODO I'm sure netrefl has this functionality...
 					if self.clientConn then
-	--DEBUG:print('server sending clientConn doMove')
+--DEBUG:print('server sending clientConn doMove')
 						self.clientConn:netcall{
 							done = done,
 							'doMove',
@@ -375,7 +377,7 @@ function App:update()
 							toPlaceIndex,
 						}
 					else
-	--DEBUG:print('local doMove')
+--DEBUG:print('local doMove')
 						done(self:doMove(
 							playerIndex,
 							fromPlaceIndex,
@@ -408,7 +410,7 @@ function App:update()
 								local forecastBoard = self.board:clone()
 								local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
 								if forecastSelPiece then
-									forecastSelPiece:moveTo(movePath)
+									forecastSelPiece:move(movePath)
 								end
 								forecastBoard:refreshMoves()
 								return not forecastBoard.checks[self.shared.turn]
@@ -447,10 +449,10 @@ function App:update()
 				if forecastSelPiece then
 					-- if there was a valid move then use that move (i.e. castle etc)
 					if movePath then
-						forecastSelPiece:moveTo(movePath)
+						forecastSelPiece:move(movePath)
 					else
 						-- otherwise just look at what teleporting the piece would do ...
-						forecastSelPiece:moveTo(table{
+						forecastSelPiece:move(table{
 							{
 								placeIndex = self.selectedPlace.index,
 								-- edgeIndex should be there but isn't ...

@@ -186,7 +186,8 @@ function Board:clone()
 	for _,srcPlace in ipairs(self.places) do
 		srcPlace:clone(newBoard)
 	end
-
+	newBoard.lastMovedPlaceIndex = self.lastMovedPlaceIndex
+--DEBUG:print('Board:clone lastMovedPlaceIndex', newBoard.lastMovedPlaceIndex)
 	-- shallow copy
 	newBoard.playerDirToOtherKings = self.playerDirToOtherKings
 	for placeIndex,newPlace in ipairs(newBoard.places) do

@@ -67,7 +67,7 @@ end
 -- friendlyFire = true means consider friendly-fire attacks.  this is useful for generating the help arrow annotations.
 function Piece:getMoves(friendlyFire)
 	local startPlace = assert(self.board.places[self.placeIndex])	-- or just nil or {} for no-place?
---DEBUG:assert(Place:isa(startPlace))
+--DEBUG:assert(require 'place':isa(startPlace))
 	assert(startPlace.piece == self)
 
 	-- TODO don't return a list of places
@@ -77,8 +77,8 @@ function Piece:getMoves(friendlyFire)
 
 	-- now traverse the manifold, stepping in each direction
 	local function iterate(path, blocking, place, prevPlace, step, already, state)
---DEBUG:assert(Place:isa(place))
---DEBUG:assert(Place:isa(prevPlace))
+--DEBUG:assert(require 'place':isa(place))
+--DEBUG:assert(require 'place':isa(prevPlace))
 		if already[place] then return end
 		already[place] = true
 
@@ -175,7 +175,7 @@ function Piece:getMoves(friendlyFire)
 end
 
 
-function Piece:moveTo(movePath)
+function Piece:move(movePath)
 -- TODO assert movePath[1].place == self.place
 	local to = self.board.places[movePath:last().placeIndex]
 	
@@ -192,7 +192,8 @@ function Piece:moveTo(movePath)
 	to.piece = self
 	self.placeIndex = to.index
 	self.moved = true
-	self.lastMove = movePath
+	self.lastMovePath = movePath
+	self.board.lastMovedPlaceIndex = assert(to.index)
 end
 
 
@@ -288,17 +289,19 @@ function Pawn:moveStep(args)
 					-- if so then allow en piss ant
 					local enpassant
 					for _,p in ipairs(self.board.places) do
-						local piece = p.piece
-						if piece 
-						and Pawn:isa(piece) 
-						and piece.lastMove
-						and piece.lastMove.state == 0	-- it was a straight move, not a diagonal capture
-						and #piece.lastMove == 3			-- it went 2 tiles
-						and piece.lastMove[2].placeIndex == nextPlace.index
-						-- and the piece was the last-moved-piece of this player
-						then
-							enpassant = true
-							break
+						-- TODO en-passant last-moved-only gameplay flag?
+						if self.board.lastMovedPlaceIndex == p.index then	-- this was the last-moved piece
+							local piece = p.piece
+							if piece 
+							and Pawn:isa(piece) 
+							and piece.lastMovePath
+							and piece.lastMovePath.state == 0	-- it was a straight move, not a diagonal capture
+							and #piece.lastMovePath == 3			-- it went 2 tiles
+							and piece.lastMovePath[2].placeIndex == nextPlace.index	-- the middle tile is our target
+							then
+								enpassant = true
+								break
+							end
 						end
 					end
 					if enpassant then
@@ -312,29 +315,32 @@ function Pawn:moveStep(args)
 	end)
 end
 
-function Pawn:moveTo(movePath)
+function Pawn:move(movePath)
+--DEBUG:print('Pawn:move self.board.lastMovedPlaceIndex', self.board.lastMovedPlaceIndex)
 	local to = self.board.places[movePath:last().placeIndex]
 	-- if the move is an en-passant ...
 	-- then make sure to eat the piece
 	if to.piece == nil then
 		for _,p in ipairs(self.board.places) do
-			local piece = p.piece
-			if piece 
-			and Pawn:isa(piece) 
-			and piece.player ~= self.player
-			and piece.lastMove
-			and piece.lastMove.state == 0	-- it was a straight move, not a diagonal capture
-			and #piece.lastMove == 3			-- it went 2 tiles
-			and piece.lastMove[2].placeIndex == to.index
-			-- and the piece was the last-moved-piece of this player
-			then
-				piece.placeIndex = nil
-				p.piece = nil
+			if self.board.lastMovedPlaceIndex == p.index then	-- this was the last-moved piece
+				local piece = p.piece
+				if piece 
+				and Pawn:isa(piece) 
+				and piece.player ~= self.player
+				and piece.lastMovePath
+				and piece.lastMovePath.state == 0	-- it was a straight move, not a diagonal capture
+				and #piece.lastMovePath == 3			-- it went 2 tiles
+				and piece.lastMovePath[2].placeIndex == to.index
+				-- and the piece was the last-moved-piece of this player
+				then
+					piece.placeIndex = nil
+					p.piece = nil
+				end
 			end
 		end
 	end
 
-	Pawn.super.moveTo(self, movePath)
+	Pawn.super.move(self, movePath)
 	-- TODO here - if we ended up moving 2 squares then save our from and to
 	-- and esp the square between
 	-- and, for the length of 1 move, save that as the en-passant square
