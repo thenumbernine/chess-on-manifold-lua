@@ -174,9 +174,9 @@ function Piece:getMoves(friendlyFire)
 end
 
 
-function Piece:moveTo(to)--movePath)
+function Piece:moveTo(movePath)
 -- TODO assert movePath[1].place == self.place
---	local to = movePath:last().place 
+	local to = self.board.places[movePath:last().placeIndex]
 	
 	self.lastPlaceIndex = self.placeIndex
 	local from = self.board.places[self.placeIndex]

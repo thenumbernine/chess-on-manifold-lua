@@ -266,7 +266,10 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 
-	if not fromMoves:find(nil, function(move) return move:last().placeIndex == toPlace.index end) then
+	local _, movePath = fromMoves:find(nil, function(move) 
+		return move:last().placeIndex == toPlace.index 
+	end)
+	if not movePath then
 --DEBUG:print("...couldn't find toPlace in selectedMoves")
 		return false
 	end
@@ -275,7 +278,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 
 	-- don't allow moving yourself into check
 	local newBoard = self.board:clone()
-	newBoard.places[fromPlaceIndex].piece:moveTo(newBoard.places[toPlaceIndex])
+	newBoard.places[fromPlaceIndex].piece:moveTo(movePath)
 	newBoard:refreshMoves()
 	if newBoard.checks[playerIndex] then return false end
 
@@ -283,7 +286,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 	self.history:insert(prevBoard)
 
 	-- move the piece to that square
-	fromPlace.piece:moveTo(toPlace)
+	fromPlace.piece:moveTo(movePath)
 
 	self.board:refreshMoves()
 
@@ -401,14 +404,11 @@ function App:update()
 
 							-- if we dont want to allow manual capturing of the king...
 							-- ... then filter out all moves that won't end the check
-							self.selectedMoves = self.selectedMoves:filter(function(move)
-								local place = self.board.places[move:last().placeIndex]
-								local destPlaceIndex = place.index
-
+							self.selectedMoves = self.selectedMoves:filter(function(movePath)
 								local forecastBoard = self.board:clone()
 								local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
 								if forecastSelPiece then
-									forecastSelPiece:moveTo(forecastBoard.places[destPlaceIndex])
+									forecastSelPiece:moveTo(movePath)
 								end
 								forecastBoard:refreshMoves()
 								return not forecastBoard.checks[self.shared.turn]
@@ -428,7 +428,9 @@ function App:update()
 		if self.selectedPlace
 		and self.selectedPlace.piece
 		and self.mouseOverPlace
-		--and self.selectedMoves:find(nil, function(move) return move:last().placeIndex == self.mouseOverPlace.index end)
+		--[[ only forecast valid moves ...
+		and self.selectedMoves:find(nil, function(movePath) return movePath:last().placeIndex == self.mouseOverPlace.index end)
+		--]]
 		then
 			if not self.forecastPlace
 			or self.forecastPlace ~= self.mouseOverPlace
@@ -436,9 +438,28 @@ function App:update()
 				self.forecastPlace = self.mouseOverPlace
 				self.forecastBoard = self.board:clone()
 
+				-- look for a valid move from the selected piece's location
+				local _, movePath = self.selectedPlace.piece.movePaths:find(nil, function(movePath)
+					return movePath:last().placeIndex == self.mouseOverPlace.index
+				end)
+
 				local forecastSelPiece = self.forecastBoard.places[self.selectedPlaceIndex].piece
 				if forecastSelPiece then
-					forecastSelPiece:moveTo(self.forecastBoard.places[self.mouseOverPlaceIndex])
+					-- if there was a valid move then use that move (i.e. castle etc)
+					if movePath then
+						forecastSelPiece:moveTo(movePath)
+					else
+						-- otherwise just look at what teleporting the piece would do ...
+						forecastSelPiece:moveTo(table{
+							{
+								placeIndex = self.selectedPlace.index,
+								-- edgeIndex should be there but isn't ...
+							},
+							{
+								placeIndex = self.mouseOverPlaceIndex,
+							}
+						})
+					end
 				end
 				self.forecastBoard:refreshMoves()
 			end
