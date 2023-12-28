@@ -139,7 +139,7 @@ function Piece:getMoves(friendlyFire)
 				local nextPath = table(path)
 				nextPath:insert{
 					placeIndex = place.index,
-					edge = moveEdgeIndex+1,
+					edgeIndex = moveEdgeIndex+1,
 				}
 				iterate(nextPath, blocking, self.board.places[edge.placeIndex], place, step+1, already, state)
 			end
@@ -164,7 +164,7 @@ function Piece:getMoves(friendlyFire)
 				path.state = state	-- state doesn't change throughout a path
 				path:insert{
 					placeIndex = startPlace.index,
-					edge = moveEdgeIndex+1,
+					edgeIndex = moveEdgeIndex+1,
 				}
 				iterate(path, blocking, nextPlace, startPlace, 1, already, state)
 			end
@@ -585,24 +585,10 @@ end
 -- place = first place next to the king
 -- edgeIndex = 1-based edge in the direction we're going
 function King:findCastleRook(place, edgeIndex)
---DEBUG:print("King:findCastleRook starting at", place.center)
+--DEBUG:print("King:findCastleRook starting at", place.index, "centered", place.center, "edge", edgeIndex)
 	local nedges = #place.edges
 	edgeIndex = (edgeIndex - 1 + math.floor(nedges/2)) % nedges + 1
 	while true do
-		-- take a step ...
-		local edge = place.edges[edgeIndex]
-		if not edge then break end
-		local nextPlace = self.board.places[edge.placeIndex]
-		if not nextPlace then break end
-		local nextEdgeIndex = nextPlace.edges:find(nil, function(edge)
-			return self.board.places[edge.placeIndex] == place
-		end)
-		if not nextEdgeIndex then break end
-		place = nextPlace
-		local nedges = #place.edges
-		edgeIndex = ((nextEdgeIndex-1) + math.floor(nedges/2)) % nedges + 1
---DEBUG:print("King:findCastleRook stepping to", place.center)
-
 		local piece = place.piece 
 		if piece then
 --DEBUG:print("King:findCastleRook found a piece ...")			
@@ -642,9 +628,53 @@ function King:findCastleRook(place, edgeIndex)
 				end
 			end
 		end
+	
+		-- take a step ...
+		local edge = place.edges[edgeIndex]
+		if not edge then break end
+		local nextPlace = self.board.places[edge.placeIndex]
+		if not nextPlace then break end
+		local nextEdgeIndex = nextPlace.edges:find(nil, function(edge)
+			return self.board.places[edge.placeIndex] == place
+		end)
+		if not nextEdgeIndex then break end
+		place = nextPlace
+		local nedges = #place.edges
+		edgeIndex = ((nextEdgeIndex-1) + math.floor(nedges/2)) % nedges + 1
+--DEBUG:print("King:findCastleRook stepping to", place.center)
 	end
 --DEBUG:print("couldn't find a castle rook")	
 	return nil
+end
+
+function King:move(movePath)
+	-- if we were castling then move 
+	if movePath.state == 2 or movePath.state == -2 then
+		local step1place = self.board.places[movePath[1].placeIndex]
+		local step2place = self.board.places[movePath[2].placeIndex]
+		local edgeIndex, edge = step2place.edges:find(nil, function(edge)
+			return self.board.places[edge.placeIndex] == step1place
+		end)
+		assert(edgeIndex)
+
+		local rook = self:findCastleRook(
+			step2place,
+			edgeIndex
+		)
+		assert(rook)
+
+		rook:move(table{
+			{
+				placeIndex = rook.placeIndex,
+			},
+			{
+				placeIndex = step2place.index
+			}
+		})
+	end
+
+	-- register the kings move as the last move
+	King.super.move(self, movePath)
 end
 
 return Piece
