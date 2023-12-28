@@ -9,7 +9,7 @@ From there, piece movements have been redefined in terms of local moves.
 - Horses move two moves forward (non-blocking) and one move left/right (blocking).
 
 # TODO
-- en-pessant
+- en-pessant only for last moved piece
 - castling
 - show friendly-fire attack of pawns (or anything whose move depends on a piece being there)
 - I think rook or some piece works for any number of sided polygons, but most pieces assume faces are quads.

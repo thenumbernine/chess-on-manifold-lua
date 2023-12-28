@@ -72,7 +72,7 @@ function Piece:getMoves(friendlyFire)
 
 	-- TODO don't return a list of places
 	-- return a list of paths / edges
-	-- then use this with pawn/king to determine en-pessant and castle
+	-- then use this with pawn/king to determine en-passant and castle
 	local movePaths = table()
 
 	-- now traverse the manifold, stepping in each direction
@@ -286,7 +286,7 @@ function Pawn:moveStep(args)
 					-- TODO if no piece is there ...
 					-- then look if a pawn just hopped over this last turn ... 
 					-- if so then allow en piss ant
-					local enpessant
+					local enpassant
 					for _,p in ipairs(self.board.places) do
 						local piece = p.piece
 						if piece 
@@ -297,11 +297,11 @@ function Pawn:moveStep(args)
 						and piece.lastMove[2].placeIndex == nextPlace.index
 						-- and the piece was the last-moved-piece of this player
 						then
-							enpessant = true
+							enpassant = true
 							break
 						end
 					end
-					if enpessant then
+					if enpassant then
 						-- ok and LOL now we need EXTRA RULES for making the move
 						-- (as well as just detecting the move)
 						coroutine.yield(destedgeindex, true)
@@ -314,7 +314,7 @@ end
 
 function Pawn:moveTo(movePath)
 	local to = self.board.places[movePath:last().placeIndex]
-	-- if the move is an en-pessant ...
+	-- if the move is an en-passant ...
 	-- then make sure to eat the piece
 	if to.piece == nil then
 		for _,p in ipairs(self.board.places) do
@@ -337,7 +337,7 @@ function Pawn:moveTo(movePath)
 	Pawn.super.moveTo(self, movePath)
 	-- TODO here - if we ended up moving 2 squares then save our from and to
 	-- and esp the square between
-	-- and, for the length of 1 move, save that as the en-pessant square
+	-- and, for the length of 1 move, save that as the en-passant square
 end
 
 local Bishop = Piece:subclass()
