@@ -157,12 +157,17 @@ function Board:refreshMoves()
 	for _,place in ipairs(self.places) do
 		local piece = place.piece
 		if piece then
+			-- hmm does anyone really use piece.moves? not even clone does ..
 			piece.moves = piece:getMoves(true)
 			for _,move in ipairs(piece.moves) do
-				local targetPiece = move.piece
+				local targetPiece = move.path:last().place.piece
 				if targetPiece then
 					local friendly = targetPiece.player == piece.player
-					self.attacks:insert{piece, targetPiece, friendly}
+					self.attacks:insert{
+						piece,
+						targetPiece,
+						friendly,
+					}
 
 					if not friendly
 					and Piece.King:isa(targetPiece)
