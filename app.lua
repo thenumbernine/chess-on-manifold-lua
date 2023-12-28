@@ -73,7 +73,7 @@ function App:initGL()
 				generateMipmap = true,
 			}
 			tex.image = image
-			tex.image:save(piece..'-'..color..'.png')
+			--tex.image:save(piece..'-'..color..'.png')
 			self.pieceTexs[color][piece] = tex
 		end
 	end
