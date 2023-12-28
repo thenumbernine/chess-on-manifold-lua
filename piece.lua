@@ -73,7 +73,7 @@ function Piece:getMoves(friendlyFire)
 	-- TODO don't return a list of places
 	-- return a list of paths / edges
 	-- then use this with pawn/king to determine en-pessant and castle
-	local moves = table()
+	local movePaths = table()
 
 	-- now traverse the manifold, stepping in each direction
 	local function iterate(path, blocking, place, prevPlace, step, already, state)
@@ -94,9 +94,9 @@ function Piece:getMoves(friendlyFire)
 			-- notice I'm only ever doing shallow-copies of the 'path' entries ... not that it matters atm, nothing is modifying them.
 			local movePath = table(path)
 			movePath:insert{
-				place = place,
+				placeIndex = place.index,
 			}
-			moves:insert(movePath)
+			movePaths:insert(movePath)
 
 			-- same, unfriendly
 			if place.piece then
@@ -138,7 +138,7 @@ function Piece:getMoves(friendlyFire)
 			if edge and self.board.places[edge.placeIndex] then
 				local nextPath = table(path)
 				nextPath:insert{
-					place = place,
+					placeIndex = place.index,
 					edge = moveEdgeIndex+1,
 				}
 				iterate(nextPath, blocking, self.board.places[edge.placeIndex], place, step+1, already, state)
@@ -162,7 +162,7 @@ function Piece:getMoves(friendlyFire)
 				already[startPlace] = true
 				local path = table()
 				path:insert{
-					place = startPlace,
+					placeIndex = startPlace.index,
 					edge = moveEdgeIndex+1,
 				}
 				iterate(path, blocking, nextPlace, startPlace, 1, already, state)
@@ -170,11 +170,14 @@ function Piece:getMoves(friendlyFire)
 		end
 	end
 
-	return moves
+	return movePaths
 end
 
 
-function Piece:moveTo(to)
+function Piece:moveTo(to)--movePath)
+-- TODO assert movePath[1].place == self.place
+--	local to = movePath:last().place 
+	
 	self.lastPlaceIndex = self.placeIndex
 	local from = self.board.places[self.placeIndex]
 	if from then

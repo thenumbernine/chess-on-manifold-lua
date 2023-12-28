@@ -160,7 +160,7 @@ function Board:refreshMoves()
 			-- hmm does anyone really use piece.moves? not even clone does ..
 			piece.moves = piece:getMoves(true)
 			for _,move in ipairs(piece.moves) do
-				local targetPiece = move:last().place.piece
+				local targetPiece = self.places[move:last().placeIndex].piece
 				if targetPiece then
 					local friendly = targetPiece.player == piece.player
 					self.attacks:insert{
