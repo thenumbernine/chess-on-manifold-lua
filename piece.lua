@@ -176,7 +176,7 @@ end
 
 
 function Piece:move(movePath)
--- TODO assert movePath[1].place == self.place
+--DEBUG:assert(movePath[1].placeIndex == self.placeIndex)
 	local to = self.board.places[movePath:last().placeIndex]
 	
 	self.lastPlaceIndex = self.placeIndex
