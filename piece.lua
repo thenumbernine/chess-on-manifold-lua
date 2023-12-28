@@ -124,7 +124,7 @@ function Piece:getMoves(friendlyFire)
 		-- ...
 		-- hmm, for modulo math's sake, 0-based indexes would be very nice here ...
 		-- yields:
-		-- 1st: neighborhood index
+		-- 1st: edge index
 		-- 2nd: mark or not
 		for moveEdgeIndex, blocking in self:moveStep{
 			place = place,
@@ -147,7 +147,7 @@ function Piece:getMoves(friendlyFire)
 	end
 
 	-- yields:
-	-- 1st: neighborhood index (0-based)
+	-- 1st: edge index (0-based)
 	-- 2nd: mark or not
 	-- 3rd: is forwarded as state variables to 'moveStep'
 	for moveEdgeIndex, blocking, state in self:moveStart{
@@ -161,6 +161,7 @@ function Piece:getMoves(friendlyFire)
 				local already = {}
 				already[startPlace] = true
 				local path = table()
+				path.state = state	-- state doesn't change throughout a path
 				path:insert{
 					placeIndex = startPlace.index,
 					edge = moveEdgeIndex+1,
@@ -191,6 +192,7 @@ function Piece:moveTo(movePath)
 	to.piece = self
 	self.placeIndex = to.index
 	self.moved = true
+	self.lastMove = movePath
 end
 
 
@@ -234,9 +236,9 @@ function Pawn:moveStart(args)
 		for lr=-1,1 do
 			if lr == 0 then
 				-- move forward if nothing is there ...
-				local neighbor = self.board.places[place.edges[self.dir].placeIndex]
-				if neighbor
-				and not neighbor.piece
+				local nextPlace = self.board.places[place.edges[self.dir].placeIndex]
+				if nextPlace
+				and not nextPlace.piece
 				then -- ... unless we let pawns capture forward 1 tile ...
 					coroutine.yield(self.dir-1, true, lr)
 				end
@@ -268,21 +270,42 @@ function Pawn:moveStep(args)
 			-- if this is our starting square then ...
 			if step > 1 then return end
 			local destedgeindex = (edgeindex + math.floor(nedges/2)) % nedges
-			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
-			if not neighbor then return end
-			if neighbor.piece then return end	-- ... unless we let pawns capture forward 2 tiles ...
+			local nextPlace = self.board.places[place.edges[destedgeindex+1].placeIndex]
+			if not nextPlace then return end
+			if nextPlace.piece then return end	-- ... unless we let pawns capture forward 2 tiles ...
 			coroutine.yield(destedgeindex, true)
 		else
 		-- diagonal attack...
 			if step > 1 then return end
 			local destedgeindex = (edgeindex + math.floor(nedges/2) + lr) % nedges
-			local neighbor = self.board.places[place.edges[destedgeindex+1].placeIndex]
-			if not neighbor then return end
-			if neighbor.piece then
-				coroutine.yield(destedgeindex, true)
-			else
-				-- else -
-				-- TODO if no piece - then look if a pawn just hopped over this last turn ... if so then allow en piss ant
+			local nextPlace = self.board.places[place.edges[destedgeindex+1].placeIndex]
+			if nextPlace then
+				if nextPlace.piece then
+					coroutine.yield(destedgeindex, true)
+				else
+					-- TODO if no piece is there ...
+					-- then look if a pawn just hopped over this last turn ... 
+					-- if so then allow en piss ant
+					local enpessant
+					for _,p in ipairs(self.board.places) do
+						local piece = p.piece
+						if piece 
+						and Pawn:isa(piece) 
+						and piece.lastMove
+						and piece.lastMove.state == 0	-- it was a straight move, not a diagonal capture
+						and #piece.lastMove == 3			-- it went 2 tiles
+						and piece.lastMove[2].placeIndex == nextPlace.index
+						then
+							enpessant = true
+							break
+						end
+					end
+					if enpessant then
+						-- ok and LOL now we need EXTRA RULES for making the move
+						-- (as well as just detecting the move)
+						coroutine.yield(destedgeindex, true)
+					end
+				end
 			end
 		end
 	end)
@@ -306,7 +329,7 @@ function Bishop:moveStart(args)
 		for i=0,#place.edges-1 do
 			for lr=-1,1,2 do	-- left vs right
 				coroutine.yield(
-					i,		-- neighbor
+					i,		-- edge to next place
 					false,	-- mark? not for the first step
 					lr		-- state: left vs right
 				)
@@ -348,7 +371,7 @@ function Knight:moveStart(args)
 		for i=0,#place.edges-1 do
 			for lr=-1,1,2 do	-- left vs right
 				coroutine.yield(
-					i,		-- neighbor
+					i,		-- edge to next place
 					false,	-- mark? not for the first step
 					lr		-- state: left vs right
 				)
@@ -421,7 +444,7 @@ function Queen:moveStart(args)
 		for i=0,#place.edges-1 do
 			for lr=-1,1 do	-- left, center, right
 				coroutine.yield(
-					i,		-- neighbor
+					i,		-- edge to next place
 					lr == 0,	-- mark? not for the first bishop step
 					lr		-- state: left vs right
 				)
@@ -474,7 +497,7 @@ function King:moveStart(args)
 		for i=0,nedges-1 do
 			for lr=-1,1 do	-- left, center, right
 				coroutine.yield(
-					i,		-- neighbor
+					i,		-- edge to next place
 					lr == 0,	-- mark? not for the first step
 					lr		-- state: left vs right
 				)
