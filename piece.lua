@@ -562,14 +562,89 @@ function King:moveStep(args)
 			end
 		elseif lr == 2 or lr == -2 then	-- castle
 			if step == 1 then
-				coroutine.yield(
-					(edgeindex + math.floor(nedges/2)) % nedges,
-					true
-				)
+				-- only allow this if ...
+				if self.moved then
+--DEBUG:print("...can't castle, the king has already moved")				
+				else
+					-- ... the king hasn't moved
+					-- rook must be friendly, not moved, and no pieces between, with no attacks
+					local rook = self:findCastleRook(place, edgeindex+1)
+					if rook then
+--DEBUG:print("King found castle-able rook!")						
+						coroutine.yield(
+							(edgeindex + math.floor(nedges/2)) % nedges,
+							true
+						)
+					end
+				end
 			end
 		end
 	end)
 end
 
+-- place = first place next to the king
+-- edgeIndex = 1-based edge in the direction we're going
+function King:findCastleRook(place, edgeIndex)
+--DEBUG:print("King:findCastleRook starting at", place.center)
+	local nedges = #place.edges
+	edgeIndex = (edgeIndex - 1 + math.floor(nedges/2)) % nedges + 1
+	while true do
+		-- take a step ...
+		local edge = place.edges[edgeIndex]
+		if not edge then break end
+		local nextPlace = self.board.places[edge.placeIndex]
+		if not nextPlace then break end
+		local nextEdgeIndex = nextPlace.edges:find(nil, function(edge)
+			return self.board.places[edge.placeIndex] == place
+		end)
+		if not nextEdgeIndex then break end
+		place = nextPlace
+		local nedges = #place.edges
+		edgeIndex = ((nextEdgeIndex-1) + math.floor(nedges/2)) % nedges + 1
+--DEBUG:print("King:findCastleRook stepping to", place.center)
+
+		local piece = place.piece 
+		if piece then
+--DEBUG:print("King:findCastleRook found a piece ...")			
+			if not Rook:isa(piece) then
+--DEBUG:print("... but it's a "..tostring(piece.name)..", not a rook, failing")
+			else
+--DEBUG:print("it's a rook ...")
+				if piece.moved then
+--DEBUG:print("... but it's moved, failing")
+				else
+--DEBUG:print("it hasn't moved ...")
+					if piece.player ~= self.player then
+--DEBUG:print("... but it's not ours, failing")
+					else
+--DEBUG:print("and it's ours - returning")
+						return piece
+					end
+				end
+			end
+			return nil 
+		end
+		-- if it's empty, make sure no attacks go through this tile
+		-- i.e. of all enemy moves, none touch this tile
+		for _,otherPlace in ipairs(self.board.places) do
+			local piece = otherPlace.piece
+			if piece
+			and piece.player ~= self.player
+			and piece.movePaths
+			then
+				if piece.movePaths:find(nil, function(movePath)
+					for _,pathStep in ipairs(movePath) do
+						if movePath.placeIndex == place.index then return true end
+					end
+				end) then
+--DEBUG:print("found an enemy attacking this square - failing")					
+					return nil
+				end
+			end
+		end
+	end
+--DEBUG:print("couldn't find a castle rook")	
+	return nil
+end
 
 return Piece
