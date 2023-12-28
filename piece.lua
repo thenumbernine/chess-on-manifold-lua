@@ -66,52 +66,52 @@ end
 -- returns a table-of-places of where the piece on this place can move
 -- friendlyFire = true means consider friendly-fire attacks.  this is useful for generating the help arrow annotations.
 function Piece:getMoves(friendlyFire)
-	local place = assert(self.board.places[self.placeIndex])	-- or just nil or {} for no-place?
-	--assert(Place:isa(place))
-	assert(place.piece == self)
+	local startPlace = assert(self.board.places[self.placeIndex])	-- or just nil or {} for no-place?
+--DEBUG:assert(Place:isa(startPlace))
+	assert(startPlace.piece == self)
 
 	local moves = table()
 
 	-- now traverse the manifold, stepping in each direction
-	local function iterate(draw, p, srcp, step, already, state)
-		--assert(Place:isa(p))
-		--assert(Place:isa(srcp))
-		if already[p] then return end
-		already[p] = true
+	local function iterate(draw, place, prevPlace, step, already, state)
+--DEBUG:assert(Place:isa(place))
+--DEBUG:assert(Place:isa(prevPlace))
+		if already[place] then return end
+		already[place] = true
 
 		-- TODO "draw" should be "checkTakePiece" or something
 		-- and there should be another flag for "checkBlock" (so knighs can distinguish the two)
 		if draw or draw == nil then
 
 			-- if we hit a friendly then stop movement
-			if p.piece and p.piece.player == place.piece.player
+			if place.piece and place.piece.player == startPlace.piece.player
 			and not friendlyFire
 			then
 				return
 			end
 
-			moves:insert(p)
+			moves:insert(place)
 
 			-- same, unfriendly
-			if p.piece then
+			if place.piece then
 				return
 			end
 		end
 
 		-- using edges instead of projective basis
-		-- find 'p's neighborhood entry that points back to 'srcp'
-		local i,nbhd = p.edges:find(nil, function(nbhd)
-			return self.board.places[nbhd.placeIndex] == srcp
+		-- find 'place's neighborhood entry that points back to 'prevPlace'
+		local edgeIndex,edge = place.edges:find(nil, function(edge)
+			return self.board.places[edge.placeIndex] == prevPlace
 		end)
-if not nbhd then
-	print("came from", srcp.center)
-	print("at", p.center)
-	print("with edges")
-	for _,n in ipairs(p.edges) do
-		print('', self.board.places[n.placeIndex].center)
-	end
-end
-		assert(nbhd)
+		if not edge then
+			print("came from", prevPlace.center)
+			print("at", place.center)
+			print("with edges")
+			for _,edge in ipairs(place.edges) do
+				print('', self.board.places[edge.placeIndex].center)
+			end
+			error"couldn't find edge"
+		end
 
 		-- now each piece should pick the next neighbor based on the prev neighbor and the neighborhood ...
 		-- cycle  around thema nd see if the piece should move in that direction
@@ -120,11 +120,11 @@ end
 		-- yields:
 		-- 1st: neighborhood index
 		-- 2nd: mark or not
-		for j, draw in self:moveStep(p, i-1, step, state) do
+		for moveEdgeIndex, draw in self:moveStep(place, edgeIndex-1, step, state) do
 			-- now pick the piece
-			local n = p.edges[j+1]
-			if n and self.board.places[n.placeIndex] then
-				iterate(draw, self.board.places[n.placeIndex], p, step+1, already, state)
+			local edge = place.edges[moveEdgeIndex+1]
+			if edge and self.board.places[edge.placeIndex] then
+				iterate(draw, self.board.places[edge.placeIndex], place, step+1, already, state)
 			end
 		end
 	end
@@ -133,14 +133,16 @@ end
 	-- 1st: neighborhood index (0-based)
 	-- 2nd: mark or not
 	-- 3rd: is forwarded as state variables to 'moveStep'
-	for j, draw, state in self:moveStart(place) do
-		local edge = place.edges[j+1]
+	for moveEdgeIndex, draw, state in self:moveStart{
+		place = startPlace,
+	} do
+		local edge = startPlace.edges[moveEdgeIndex+1]
 		if edge then
-			local nextplace = self.board.places[edge.placeIndex]
-			if nextplace then
+			local nextPlace = self.board.places[edge.placeIndex]
+			if nextPlace then
 				local already = {}
-				already[place] = true
-				iterate(draw, nextplace, place, 1, already, state)
+				already[startPlace] = true
+				iterate(draw, nextPlace, startPlace, 1, already, state)
 			end
 		end
 	end
@@ -191,7 +193,12 @@ function Pawn:initAfterPlacing()
 --print('dir', edge.ex, edge.ey)
 end
 
-function Pawn:moveStart(place)
+--[[
+args:
+	place
+--]]
+function Pawn:moveStart(args)
+	local place = args.place
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		for lr=-1,1 do
@@ -209,6 +216,13 @@ function Pawn:moveStart(place)
 	end)
 end
 
+--[[
+args:
+	place
+	edgeIndex (0-based)
+	step
+	state
+--]]
 function Pawn:moveStep(place, edgeindex, step, lr)
 	local nedges = #place.edges
 	return coroutine.wrap(function()
@@ -255,7 +269,8 @@ Piece.Bishop = Bishop
 
 Bishop.name = 'bishop'
 
-function Bishop:moveStart(place)
+function Bishop:moveStart(args)
+	local place = args.place
 	return coroutine.wrap(function()
 		for i=0,#place.edges-1 do
 			for lr=-1,1,2 do	-- left vs right
@@ -292,7 +307,8 @@ Piece.Knight = Knight
 
 Knight.name = 'knight'
 
-function Knight:moveStart(place)
+function Knight:moveStart(args)
+	local place = args.place
 	return coroutine.wrap(function()
 		for i=0,#place.edges-1 do
 			for lr=-1,1,2 do	-- left vs right
@@ -329,7 +345,8 @@ Piece.Rook = Rook
 
 Rook.name = 'rook'
 
-function Rook:moveStart(place)
+function Rook:moveStart(args)
+	local place = args.place
 	local nedges = #place.edges
 	return coroutine.wrap(function()
 		for i=0,nedges-1 do
@@ -356,7 +373,8 @@ Piece.Queen = Queen
 
 Queen.name = 'queen'
 
-function Queen:moveStart(place)
+function Queen:moveStart(args)
+	local place = args.place
 	return coroutine.wrap(function()
 		for i=0,#place.edges-1 do
 			for lr=-1,1 do	-- left, center, right
@@ -399,7 +417,8 @@ Piece.King = King
 
 King.name = 'king'
 
-function King:moveStart(place)
+function King:moveStart(args)
+	local place = args.place
 	local nedges = #place.edges
 	local fwddir = place:getEdgeIndexForDir(self.board.playerDirToOtherKings[self.player.index])
 	return coroutine.wrap(function()

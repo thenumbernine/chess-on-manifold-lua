@@ -569,12 +569,13 @@ function App:updateGUI()
 		end
 		if ig.igBeginMenu'Options' then
 			ig.igSeparator()
-			ig.igText'disable...'
+			ig.igText'allow...'
 			ig.luatableCheckbox('pawns', self.shared.enablePieces, 'pawn')
 			ig.luatableCheckbox('bishops', self.shared.enablePieces, 'bishop')
 			ig.luatableCheckbox('knights', self.shared.enablePieces, 'knight')
 			ig.luatableCheckbox('rooks', self.shared.enablePieces, 'rook')
 			ig.luatableCheckbox('queens', self.shared.enablePieces, 'queen')
+			-- TODO custom placement ... but then, also reflect across network
 			ig.igEndMenu()
 		end
 		if ig.igBeginMenu'View' then
