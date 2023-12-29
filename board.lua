@@ -10,20 +10,18 @@ local Board = class()
 
 Board.__netfields = {
 	places = require 'netrefl.netfield'.netFieldList(
-		require 'netrefl.netfield_list'.createFieldOrNil(
-			require 'netrefl.netfield'.NetFieldObject:subclass{
-				-- __netallocator is only used for members of netFieldList
-				__netallocator = function(board)
-					print('Place.netField __netallocator arg:', boardPlaces)
-					error'here'
-					return Place{
-						board = board,
-						color = vec4f(),	-- ... some default value, to-be-updated
-						vtxs = table(),	-- ... some default value, to-be-updated
-					}
-				end,
-			}
-		)
+		require 'netrefl.netfield'.NetFieldObject:subclass{
+			-- __netallocator is only used for members of netFieldList
+			__netallocator = function(board)
+				print('Place.netField __netallocator arg:', boardPlaces)
+				error'here'
+				return Place{
+					board = board,
+					color = vec4f(),	-- ... some default value, to-be-updated
+					vtxs = table(),	-- ... some default value, to-be-updated
+				}
+			end,
+		}
 	),
 }
 

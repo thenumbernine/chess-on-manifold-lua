@@ -42,26 +42,16 @@ error'here'
 			if name == '' then return nil end
 			local cl = assert(Piece.classForName[name])
 			local playerIndex = assert(tonumber((parser:next())))
-			local placeIndex = assert(tonumber((parser:next())))
-			lastValue = lastValue or cl{
-				player = app.players[playerIndex],
-				board = app.board,
-				placeIndex = place.index,
-			}
+			-- this assumes we're never changing a Piece object relative to the client, only creating and destroying them
+			if not lastValue then
+				lastValue = cl{
+					player = place.board.app.players[playerIndex],
+					board = place.board,
+					placeIndex = place.index,
+				}
+			end
 			return lastValue
 		end,
-		--]]
-		--[[
-		-- __netsend is for a single field of a parent object ...
-		__netsend = require 'netrefl.netfield'.NetFieldObject.__netsend,
-		--]]
-		--[[
-		__netsend = function(netfield, socket, prefix, field, thisObj, lastObj, thisValue)
-			-- thisObj should always be the Place
-			-- field should always be 'piece'
-			-- thisValue will be nil or a Piece object
-		end,
-		--]]
 	},
 }
 

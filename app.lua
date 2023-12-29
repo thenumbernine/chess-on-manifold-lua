@@ -160,7 +160,7 @@ function App:initGL()
 			-- doMove will handle turns ... so this really isn't shared ...
 			--turn = netField.netFieldNumber,
 			enablePieces = netField.NetFieldObject,
-			board = netField.NetFieldObject,
+			--board = netField.NetFieldObject,
 		},
 	}})
 	-- only push updates from the server
@@ -350,7 +350,7 @@ function App:update()
 						else
 							-- successful move ...
 
-							--[[ now if we're the server then we want to send to the client the fact that we moved ...
+							-- [[ now if we're the server then we want to send to the client the fact that we moved ...
 							if self.server then
 								for _,serverConn in ipairs(self.server.serverConns) do
 --DEBUG:print('sending serverConn doMove')
@@ -693,11 +693,6 @@ function App:updateGUI()
 			ig.igEnd()
 		end
 	end
-
---DEBUG(app.shared):if ig.igBegin'Test' then
---DEBUG(app.shared):	ig.igText(require 'ext.tolua'(self.server.serverConns[1].objectLastStates))
---DEBUG(app.shared):	ig.igEnd()
---DEBUG(app.shared):end
 end
 
 -- method = 'connect' or 'listen'
