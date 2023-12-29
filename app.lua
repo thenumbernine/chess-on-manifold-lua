@@ -134,15 +134,18 @@ function App:initGL()
 
 	-- TODO assign each connecting player a player #
 	-- use a 'clientToServerCall' to call the server when a player moves
-	self.shared = {
+	-- TODO make this a server-to-client-only reflected object?
+	self.shared = setmetatable({
 		turn = 1,
-		enablePieces = {
+		enablePieces = setmetatable({
 			king = true,	-- always
 			queen = true,
 			bishop = true,
 			knight = true,
 			rook = true,
 			pawn = true,
+		}, {__index={
+			-- TODO move __netfields to the metatable?  technically it can go into the __index metatable as things stand...
 			__netfields = {
 				king = netField.netFieldBoolean,	-- always
 				queen = netField.netFieldBoolean,
@@ -151,14 +154,20 @@ function App:initGL()
 				rook = netField.netFieldBoolean,
 				pawn = netField.netFieldBoolean,
 			},
-		},
+		}}),
+	}, {__index={
 		__netfields = {
 			-- doMove will handle turns ... so this really isn't shared ...
 			--turn = netField.netFieldNumber,
 			enablePieces = netField.NetFieldObject,
+--			board = netField.NetFieldObject,
 		},
-	}
-	self.netcom:addObject{name='shared', object=self.shared}
+	}})
+	-- only push updates from the server
+	self.netcom:addObjectForDir('serverToClientObjects', {
+		name = 'shared',
+		object = self.shared,
+	})
 
 	self.address = 'localhost'
 	self.port = 12345
@@ -194,10 +203,10 @@ function App:newGame(genname)
 	boardGenerator = boardGenerator or select(2, next(Board.generators[1]))
 	-- per-game
 	self.players = table()
-	self.board = boardGenerator(self)
+	self.shared.board = boardGenerator(self)
 	self.history = table()
 	self.historyIndex = nil
-	self.board:refreshMoves()
+	self.shared.board:refreshMoves()
 
 	self.shared.turn = 1
 end
@@ -231,7 +240,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 
-	local fromPlace = self.board.places[fromPlaceIndex]
+	local fromPlace = self.shared.board.places[fromPlaceIndex]
 	if not fromPlace then
 --DEBUG:print("...couldn't find fromPlaceIndex "..tostring(fromPlaceIndex))
 		return false
@@ -255,7 +264,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 		return false
 	end
 
-	local toPlace = self.board.places[toPlaceIndex]
+	local toPlace = self.shared.board.places[toPlaceIndex]
 	if not toPlace then
 --DEBUG:print("...couldn't find toPlaceIndex "..tostring(toPlaceIndex))
 		return false
@@ -275,21 +284,21 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 	end
 
 	-- don't allow moving yourself into check
-	local newBoard = self.board:clone()
+	local newBoard = self.shared.board:clone()
 	newBoard.places[fromPlaceIndex].piece:move(movePath)
 	newBoard:refreshMoves()
 	if newBoard.checks[playerIndex] then return false end
 
 	-- TODO do this client-side ...
-	local prevBoard = self.board:clone():refreshMoves()
+	local prevBoard = self.shared.board:clone():refreshMoves()
 	self.history:insert(prevBoard)
 
 	-- move the piece to that square
---DEBUG:print('App:doMove self.board.lastMovedPlaceIndex before', self.board.lastMovedPlaceIndex)
+--DEBUG:print('App:doMove self.shared.board.lastMovedPlaceIndex before', self.shared.board.lastMovedPlaceIndex)
 	fromPlace.piece:move(movePath)
---DEBUG:print('App:doMove self.board.lastMovedPlaceIndex after', self.board.lastMovedPlaceIndex)
+--DEBUG:print('App:doMove self.shared.board.lastMovedPlaceIndex after', self.shared.board.lastMovedPlaceIndex)
 
-	self.board:refreshMoves()
+	self.shared.board:refreshMoves()
 
 	self.shared.turn = self.shared.turn % #self.players + 1
 --DEBUG:print('App:doMove self.shared.turn='..tostring(self.shared.turn))
@@ -308,13 +317,13 @@ function App:update()
 	-- determine tile under mouse
 	gl.glClearColor(0,0,0,1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-	self.board:drawPicking()
+	self.shared.board:drawPicking()
 	local i, j = self.mouse.ipos:unpack()
 	j = self.height - j - 1
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
 
-		self.mouseOverPlace, self.mouseOverPlaceIndex = self.board:getPlaceForRGB(result:unpack())
+		self.mouseOverPlace, self.mouseOverPlaceIndex = self.shared.board:getPlaceForRGB(result:unpack())
 		-- if we are clicking ...
 		if self.mouse.leftClick then
 			-- if we have already selected a piece ....
@@ -341,7 +350,7 @@ function App:update()
 						else
 							-- successful move ...
 
-							-- now if we're the server then we want to send to the client the fact that we moved ...
+							-- [[ now if we're the server then we want to send to the client the fact that we moved ...
 							if self.server then
 								for _,serverConn in ipairs(self.server.serverConns) do
 --DEBUG:print('sending serverConn doMove')
@@ -355,6 +364,7 @@ function App:update()
 									}
 								end
 							else
+							--]] do
 							-- if we're not the server then we still have to do the move ourselves...
 								local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 --DEBUG:print('after remote doMove, local doMove result', result)
@@ -407,7 +417,7 @@ function App:update()
 							-- if we dont want to allow manual capturing of the king...
 							-- ... then filter out all moves that won't end the check
 							self.selectedMoves = self.selectedMoves:filter(function(movePath)
-								local forecastBoard = self.board:clone()
+								local forecastBoard = self.shared.board:clone()
 								local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
 								if forecastSelPiece then
 									forecastSelPiece:move(movePath)
@@ -438,7 +448,7 @@ function App:update()
 			or self.forecastPlace ~= self.mouseOverPlace
 			then
 				self.forecastPlace = self.mouseOverPlace
-				self.forecastBoard = self.board:clone()
+				self.forecastBoard = self.shared.board:clone()
 
 				-- look for a valid move from the selected piece's location
 				local _, movePath = self.selectedPlace.piece.movePaths:find(nil, function(movePath)
@@ -479,7 +489,7 @@ function App:update()
 	if self.historyIndex then
 		drawBoard = self.history[self.historyIndex]
 	else
-		drawBoard = self.forecastBoard or self.board
+		drawBoard = self.forecastBoard or self.shared.board
 	end
 	drawBoard:draw()
 
@@ -528,7 +538,7 @@ function App:update()
 	end
 	if self.selectedMoves then
 		for _,move in ipairs(self.selectedMoves) do
-			self.board.places[move:last().placeIndex]:drawHighlight(0,1,0, .5)
+			self.shared.board.places[move:last().placeIndex]:drawHighlight(0,1,0, .5)
 		end
 	end
 
@@ -646,7 +656,7 @@ function App:updateGUI()
 			ig.igEndMenu()
 		end
 		local str = '...  '..self.colors[self.shared.turn].."'s turn"
-		if self.board.checks[self.shared.turn] then
+		if self.shared.board.checks[self.shared.turn] then
 			str = str .. '... CHECK!'
 		end
 		if self.remotePlayerIndex then
@@ -683,6 +693,13 @@ function App:updateGUI()
 			ig.igEnd()
 		end
 	end
+
+--[[
+	if ig.igBegin'Test' then
+		ig.igText(require 'ext.tolua'(self.shared))
+		ig.igEnd()
+	end
+--]]
 end
 
 -- method = 'connect' or 'listen'

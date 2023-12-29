@@ -8,6 +8,25 @@ local Player = require 'player'
 
 local Board = class()
 
+Board.__netfields = {
+	places = require 'netrefl.netfield'.netFieldList(
+		require 'netrefl.netfield'.NetFieldObject:subclass{
+			-- __netallocator is used for resizing arrays / allocating their contents
+			-- TODO what drives the args here? is it the parent object? hmm
+			-- but then again, if client already allocates Board, maybe the __netallocator will never be called ...
+			__netallocator = function(boardPlaces)
+				print('Piece.netField __netallocator arg:', boardPlaces)
+				error'here'
+				return Piece{
+					board = app.shared.board,
+					player = app.players[1],	-- ... some default value, to-be-updated
+					placeIndex = 1,				-- ... some default value, to-be-updated
+				}
+			end,
+		}
+	),
+}
+
 function Board:init(app)
 	self.app = assert(app)
 	self.places = table()
@@ -187,7 +206,7 @@ function Board:clone()
 		srcPlace:clone(newBoard)
 	end
 	newBoard.lastMovedPlaceIndex = self.lastMovedPlaceIndex
---DEBUG:print('Board:clone lastMovedPlaceIndex', newBoard.lastMovedPlaceIndex)
+--DEBUG(Board):print('Board:clone lastMovedPlaceIndex', newBoard.lastMovedPlaceIndex)
 	-- shallow copy
 	newBoard.playerDirToOtherKings = self.playerDirToOtherKings
 	for placeIndex,newPlace in ipairs(newBoard.places) do

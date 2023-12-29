@@ -5,6 +5,10 @@ local gl = require 'gl'
 
 local Piece = class()
 
+Piece.__netfields = {
+	placeIndex = require 'netrefl.netfield'.netFieldNumber,
+}
+
 function Piece:init(args)
 	self.player = assert(args.player)
 	self.board = assert(args.board)
@@ -67,7 +71,7 @@ end
 -- friendlyFire = true means consider friendly-fire attacks.  this is useful for generating the help arrow annotations.
 function Piece:getMoves(friendlyFire)
 	local startPlace = assert(self.board.places[self.placeIndex])	-- or just nil or {} for no-place?
---DEBUG:assert(require 'place':isa(startPlace))
+--DEBUG(Piece):assert(require 'place':isa(startPlace))
 	assert(startPlace.piece == self)
 
 	-- TODO don't return a list of places
@@ -77,8 +81,8 @@ function Piece:getMoves(friendlyFire)
 
 	-- now traverse the manifold, stepping in each direction
 	local function iterate(path, blocking, place, prevPlace, step, already, state)
---DEBUG:assert(require 'place':isa(place))
---DEBUG:assert(require 'place':isa(prevPlace))
+--DEBUG(Piece):assert(require 'place':isa(place))
+--DEBUG(Piece):assert(require 'place':isa(prevPlace))
 		if already[place] then return end
 		already[place] = true
 
@@ -176,7 +180,7 @@ end
 
 
 function Piece:move(movePath)
---DEBUG:assert(movePath[1].placeIndex == self.placeIndex)
+--DEBUG(Piece):assert(movePath[1].placeIndex == self.placeIndex)
 	local to = self.board.places[movePath:last().placeIndex]
 	
 	self.lastPlaceIndex = self.placeIndex
@@ -316,7 +320,7 @@ function Pawn:moveStep(args)
 end
 
 function Pawn:move(movePath)
---DEBUG:print('Pawn:move self.board.lastMovedPlaceIndex', self.board.lastMovedPlaceIndex)
+--DEBUG(Piece):print('Pawn:move self.board.lastMovedPlaceIndex', self.board.lastMovedPlaceIndex)
 	local to = self.board.places[movePath:last().placeIndex]
 	-- if the move is an en-passant ...
 	-- then make sure to eat the piece
@@ -564,13 +568,13 @@ function King:moveStep(args)
 			if step == 1 then
 				-- only allow this if ...
 				if self.moved then
---DEBUG:print("...can't castle, the king has already moved")				
+--DEBUG(Piece):print("...can't castle, the king has already moved")				
 				else
 					-- ... the king hasn't moved
 					-- rook must be friendly, not moved, and no pieces between, with no attacks
 					local rook = self:findCastleRook(place, edgeindex+1)
 					if rook then
---DEBUG:print("King found castle-able rook!")						
+--DEBUG(Piece):print("King found castle-able rook!")						
 						coroutine.yield(
 							(edgeindex + math.floor(nedges/2)) % nedges,
 							true
@@ -585,25 +589,25 @@ end
 -- place = first place next to the king
 -- edgeIndex = 1-based edge in the direction we're going
 function King:findCastleRook(place, edgeIndex)
---DEBUG:print("King:findCastleRook starting at", place.index, "centered", place.center, "edge", edgeIndex)
+--DEBUG(Piece):print("King:findCastleRook starting at", place.index, "centered", place.center, "edge", edgeIndex)
 	local nedges = #place.edges
 	edgeIndex = (edgeIndex - 1 + math.floor(nedges/2)) % nedges + 1
 	while true do
 		local piece = place.piece 
 		if piece then
---DEBUG:print("King:findCastleRook found a piece ...")			
+--DEBUG(Piece):print("King:findCastleRook found a piece ...")			
 			if not Rook:isa(piece) then
---DEBUG:print("... but it's a "..tostring(piece.name)..", not a rook, failing")
+--DEBUG(Piece):print("... but it's a "..tostring(piece.name)..", not a rook, failing")
 			else
---DEBUG:print("it's a rook ...")
+--DEBUG(Piece):print("it's a rook ...")
 				if piece.moved then
---DEBUG:print("... but it's moved, failing")
+--DEBUG(Piece):print("... but it's moved, failing")
 				else
---DEBUG:print("it hasn't moved ...")
+--DEBUG(Piece):print("it hasn't moved ...")
 					if piece.player ~= self.player then
---DEBUG:print("... but it's not ours, failing")
+--DEBUG(Piece):print("... but it's not ours, failing")
 					else
---DEBUG:print("and it's ours - returning")
+--DEBUG(Piece):print("and it's ours - returning")
 						return piece
 					end
 				end
@@ -623,7 +627,7 @@ function King:findCastleRook(place, edgeIndex)
 						if movePath.placeIndex == place.index then return true end
 					end
 				end) then
---DEBUG:print("found an enemy attacking this square - failing")					
+--DEBUG(Piece):print("found an enemy attacking this square - failing")					
 					return nil
 				end
 			end
@@ -641,9 +645,9 @@ function King:findCastleRook(place, edgeIndex)
 		place = nextPlace
 		local nedges = #place.edges
 		edgeIndex = ((nextEdgeIndex-1) + math.floor(nedges/2)) % nedges + 1
---DEBUG:print("King:findCastleRook stepping to", place.center)
+--DEBUG(Piece):print("King:findCastleRook stepping to", place.center)
 	end
---DEBUG:print("couldn't find a castle rook")	
+--DEBUG(Piece):print("couldn't find a castle rook")	
 	return nil
 end
 
