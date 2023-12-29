@@ -2,9 +2,68 @@ local class = require 'ext.class'
 local table = require 'ext.table'
 local vec3f = require 'vec-ffi.vec3f'
 local gl = require 'gl'
-
+local Piece = require 'piece'
 
 local Place = class()
+
+Place.__netfields = {
+	index = require 'netrefl.netfield'.netFieldNumber,
+	-- we have to make this netfield such that it constructs pieces for the place, and with the correct info ...
+	--[[ createFieldOrNil might not be working... it might only work for lists ...
+	piece = require 'netrefl.netfield_list'.createFieldOrNil(
+		require 'netrefl.netfield'.NetFieldObject:subclass{
+			__netallocator = function(place)
+error'here'			
+				return Piece{
+					board = place.board,
+					player = place.board.app.players[1],	-- fake for ctor
+					placeIndex = 1,	-- fake for ctor
+				}
+			end,
+		}
+	),
+	--]]
+	piece = {
+		-- [[
+		__netsend = require 'netrefl.netfield'.NetField.__netsend,
+		__netdiff = require 'ext.op'.ne,
+		__netcopy = function(x) return x end,
+		-- __netencode is only used with default NetField.__netsend implementations
+		-- NetFieldObject overrides __netsend, so it doesn't ever call __netencode / __netparse ...
+		__netencode = function(piece)
+			if piece == nil then
+				return ''
+			end
+			return piece.name..' '..piece.player.index
+		end,
+		__netparse = function(parser, lastValue, place)
+			assert(Place:isa(place))
+			local name = parser:next()
+			if name == '' then return nil end
+			local cl = assert(Piece.classForName[name])
+			local playerIndex = assert(tonumber((parser:next())))
+			local placeIndex = assert(tonumber((parser:next())))
+			lastValue = lastValue or cl{
+				player = app.players[playerIndex],
+				board = app.board,
+				placeIndex = place.index,
+			}
+			return lastValue
+		end,
+		--]]
+		--[[
+		-- __netsend is for a single field of a parent object ...
+		__netsend = require 'netrefl.netfield'.NetFieldObject.__netsend,
+		--]]
+		--[[
+		__netsend = function(netfield, socket, prefix, field, thisObj, lastObj, thisValue)
+			-- thisObj should always be the Place
+			-- field should always be 'piece'
+			-- thisValue will be nil or a Piece object
+		end,
+		--]]
+	},
+}
 
 function Place:init(args)
 	self.board = assert(args.board)
@@ -96,6 +155,11 @@ function Place:draw()
 		self:drawPolygon()
 	end
 	if self.piece then
+if not self.piece.draw then
+	print('self.piece', self.piece)
+	error("somehow your piece is of type "..tostring(type(self.piece)).." metatype "..tostring(getmetatable(self.piece)))
+end
+
 		self.piece:draw()
 	end
 end

@@ -3,10 +3,25 @@ local table = require 'ext.table'
 local vec3f = require 'vec-ffi.vec3f'
 local gl = require 'gl'
 
+local netFieldPlayerRef = require 'netrefl.netfield'.NetField:subclass{
+	__netencode = function(player) 
+		if not parser then return '' end
+		return tostring(player.index) 
+	end,
+	__netparse = function(parser) 
+		local s = parser:next()
+		if s == '' then return nil end
+		local i = assert(tonumber(s))
+		return assert(app.players[i]) 
+	end,
+}
+
 local Piece = class()
 
 Piece.__netfields = {
 	placeIndex = require 'netrefl.netfield'.netFieldNumber,
+	-- send/recv the player index ...
+	player = netFieldPlayerRef,
 }
 
 function Piece:init(args)
@@ -679,6 +694,18 @@ function King:move(movePath)
 
 	-- register the kings move as the last move
 	King.super.move(self, movePath)
+end
+
+Piece.classForName = {}
+for _,cl in ipairs{
+	Pawn,
+	Bishop,
+	Knight,
+	Rook,
+	Queen,
+	King,
+} do
+	Piece.classForName[cl.name] = cl
 end
 
 return Piece
