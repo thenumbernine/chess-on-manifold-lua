@@ -1,3 +1,4 @@
+local ffi = require 'ffi'
 local gl = require 'gl'
 local table = require 'ext.table'
 local class = require 'ext.class'
@@ -75,6 +76,9 @@ function App:initGL()
 			tex.image = image
 			--tex.image:save(piece..'-'..color..'.png')
 			self.pieceTexs[color][piece] = tex
+		
+			Piece.classForName[piece].texs = Piece.classForName[piece].texs or table()
+			Piece.classForName[piece].texs:insert(tex)
 		end
 	end
 
@@ -315,6 +319,8 @@ end
 
 local result = vec4ub()
 function App:update()
+	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
+	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
 
 	self.threads:update()
 	-- why not just make this another update thread?
@@ -333,34 +339,15 @@ function App:update()
 
 		self.mouseOverPlace, self.mouseOverPlaceIndex = self.shared.board:getPlaceForRGB(result:unpack())
 		-- if we are clicking ...
-		if self.mouse.leftClick then
+		if self.mouse.leftClick
+		and canHandleMouse 
+		then
 			if self.isPlacingCustom then
 				if self.mouseOverPlace then
-					--self.isPlacingCustom = self.mouseOverPlaceIndex
-					
-					if self.mouseOverPlace.piece == nil then
-						self.mouseOverPlace.piece = Piece.Pawn{
-							board = self.shared.board,
-							player = self.players[1],
-							placeIndex = self.mouseOverPlaceIndex,
-						}
+					if self.isPlacingCustomGenerator then
+						self.isPlacingCustomGenerator(self.mouseOverPlace)
 					else
-						local prevPiece = self.mouseOverPlace.piece
 						self.mouseOverPlace.piece = nil
-						
-						local pieceClassIndex = Piece.subclasses:find(getmetatable(prevPiece))
-						pieceClassIndex = pieceClassIndex % #Piece.subclasses + 1
-						self.mouseOverPlace.piece = Piece.subclasses[pieceClassIndex]{
-							board = self.shared.board,
-							player = prevPiece.player,
-							placeIndex = self.mouseOverPlaceIndex,
-						}
-						if pieceClassIndex == 1 then
-							self.mouseOverPlace.piece.player = self.players[prevPiece.player.index + 1]
-							if not self.mouseOverPlace.piece.player then
-								self.mouseOverPlace.piece = nil
-							end
-						end
 					end
 				end
 			else
@@ -741,6 +728,46 @@ function App:updateGUI()
 				self.isPlacingCustom = false
 				-- TODO here ... send the board to any connected
 			end
+			if ig.igButton'clear' then
+				self.isPlacingCustomGeneratorIndex = 0
+				self.isPlacingCustomGenerator = function(place)
+					place.piece = nil
+				end
+			end
+			for team,color in ipairs(self.colors) do
+				for i,cl in ipairs(Piece.subclasses) do
+					local genIndex = (team-1) * #Piece.subclasses + i
+					if i > 1 then ig.igSameLine() end
+					local sel = self.isPlacingCustomGeneratorIndex == genIndex
+					if sel then
+						ig.igPushStyleColor_Vec4(ig.ImGuiCol_Button, ig.ImVec4(1,0,0,.5))
+					end
+					if ig.igImageButton(
+						'new'..cl.name..color,
+						ffi.cast('void*', cl.texs[team].id),
+						ig.ImVec2(32, 32),
+						ig.ImVec2(0, 0),
+						ig.ImVec2(1, 1),
+						ig.ImVec4(0, 0, 0, 0),
+						self.isPlacingCustomGenerator == genIndex and ig.ImVec4(1, 0, 0, 1) or ig.ImVec4(1, 1, 1, 1)
+					) then
+						self.isPlacingCustomGeneratorIndex = genIndex 
+						self.isPlacingCustomGenerator = function(place)
+							local placeIndex = place.index
+							place.piece = nil
+							place.piece = cl{
+								board = self.shared.board,
+								player = self.players[team],
+								placeIndex = placeIndex,
+							}
+						end
+					end
+					if sel then
+						ig.igPopStyleColor(1)
+					end
+				end
+			end
+
 			ig.igEnd()
 		end
 	end
