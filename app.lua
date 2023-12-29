@@ -144,6 +144,7 @@ function App:initGL()
 			knight = true,
 			rook = true,
 			pawn = true,
+			customPlaces = false,
 		}, {__index={
 			-- TODO move __netfields to the metatable?  technically it can go into the __index metatable as things stand...
 			__netfields = {
@@ -153,6 +154,7 @@ function App:initGL()
 				knight = netField.netFieldBoolean,
 				rook = netField.netFieldBoolean,
 				pawn = netField.netFieldBoolean,
+				customPlaces = netField.netFieldBoolean,
 			},
 		}}),
 	}, {__index={
@@ -209,6 +211,12 @@ function App:newGame(genname)
 	self.shared.board:refreshMoves()
 
 	self.shared.turn = 1
+
+	if self.shared.enablePieces.customPlaces then
+		-- popup a window that says 'ready'...
+		-- don't register moves until it's clicked.
+		self.isPlacingCustom = true
+	end
 end
 
 function App:resetView()
@@ -326,113 +334,144 @@ function App:update()
 		self.mouseOverPlace, self.mouseOverPlaceIndex = self.shared.board:getPlaceForRGB(result:unpack())
 		-- if we are clicking ...
 		if self.mouse.leftClick then
-			-- if we have already selected a piece ....
-			if self.selectedPlace
-			and self.selectedPlace.piece
-			then
-				-- if its ours and we're clicking a valid square ... 
-				if self.selectedPlace.piece.player.index == self.shared.turn
-				and self.selectedMoves
-				and self.mouseOverPlace
-				and self.selectedMoves:find(nil, function(move) return move:last().placeIndex == self.mouseOverPlace.index end)
-				then
-					-- move the piece
-					local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
-					local fromPlaceIndex = assert(self.selectedPlace.index, "couldn't find fromPlaceIndex")
-					local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
-					local done = function(result)
---DEBUG:print('doMove done result', result)
-						if not result then
-							-- failed move -- deselect
-							self.selectedMoves = nil
-							self.selectedPlace = nil
-							self.selectedPlaceIndex = nil
-						else
-							-- successful move ...
-
-							-- [[ now if we're the server then we want to send to the client the fact that we moved ...
-							if self.server then
-								for _,serverConn in ipairs(self.server.serverConns) do
---DEBUG:print('sending serverConn doMove')
-									serverConn:netcall{
-										'doMove',
-										playerIndex,
-										fromPlaceIndex,
-										toPlaceIndex,
-										-- TODO
-										--done = block for all sends to finish
-									}
-								end
-							else
-							--]] do
-							-- if we're not the server then we still have to do the move ourselves...
-								local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
---DEBUG:print('after remote doMove, local doMove result', result)
-							end
-
-							self.selectedMoves = nil
-
-							self.selectedPlace = nil
-							self.selectedPlaceIndex = nil
-						end
-					end
-					-- TODO I'm sure netrefl has this functionality...
-					if self.clientConn then
---DEBUG:print('server sending clientConn doMove')
-						self.clientConn:netcall{
-							done = done,
-							'doMove',
-							playerIndex,
-							fromPlaceIndex,
-							toPlaceIndex,
+			if self.isPlacingCustom then
+				if self.mouseOverPlace then
+					--self.isPlacingCustom = self.mouseOverPlaceIndex
+					
+					if self.mouseOverPlace.piece == nil then
+						self.mouseOverPlace.piece = Piece.Pawn{
+							board = self.shared.board,
+							player = self.players[1],
+							placeIndex = self.mouseOverPlaceIndex,
 						}
 					else
---DEBUG:print('local doMove')
-						done(self:doMove(
-							playerIndex,
-							fromPlaceIndex,
-							toPlaceIndex
-						))
-					end
-				else
-					-- else deselect it
-					self.selectedMoves = nil
-					self.selectedPlace = nil
-					self.selectedPlaceIndex = nil
-				end
-			else
-				-- if we don't have a piece selected ... try to select it
-				if self.mouseOverPlace
-				and self.mouseOverPlace.piece
-				and self.mouseOverPlace ~= self.selectedPlace
-				then
-					self.selectedPlace = self.mouseOverPlace
-					self.selectedPlaceIndex = self.mouseOverPlaceIndex
-
-					if self.selectedPlace then
-						local piece = self.selectedPlace.piece
-						if piece then
-							self.selectedMoves = piece:getMoves()
-
-							-- if we dont want to allow manual capturing of the king...
-							-- ... then filter out all moves that won't end the check
-							self.selectedMoves = self.selectedMoves:filter(function(movePath)
-								local forecastBoard = self.shared.board:clone()
-								local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
-								if forecastSelPiece then
-									forecastSelPiece:move(movePath)
-								end
-								forecastBoard:refreshMoves()
-								return not forecastBoard.checks[self.shared.turn]
-							end)
-						else
-							self.selectedMoves = nil
+						local prevPiece = self.mouseOverPlace.piece
+						self.mouseOverPlace.piece = nil
+						
+						local pieceClassIndex = Piece.subclasses:find(getmetatable(prevPiece))
+						pieceClassIndex = pieceClassIndex % #Piece.subclasses + 1
+						self.mouseOverPlace.piece = Piece.subclasses[pieceClassIndex]{
+							board = self.shared.board,
+							player = prevPiece.player,
+							placeIndex = self.mouseOverPlaceIndex,
+						}
+						if pieceClassIndex == 1 then
+							self.mouseOverPlace.piece.player = self.players[prevPiece.player.index + 1]
+							if not self.mouseOverPlace.piece.player then
+								self.mouseOverPlace.piece = nil
+							end
 						end
 					end
+				end
+			else
+				-- if we have already selected a piece ....
+				if self.selectedPlace
+				and self.selectedPlace.piece
+				then
+					-- if its ours and we're clicking a valid square ... 
+					if self.selectedPlace.piece.player.index == self.shared.turn
+					and self.selectedMoves
+					and self.mouseOverPlace
+					and self.selectedMoves:find(nil, function(move) return move:last().placeIndex == self.mouseOverPlace.index end)
+					then
+						-- move the piece
+						local playerIndex = self.clientConn and self.remotePlayerIndex or self.shared.turn
+						local fromPlaceIndex = assert(self.selectedPlace.index, "couldn't find fromPlaceIndex")
+						local toPlaceIndex = assert(self.mouseOverPlace.index, "couldn't find toPlaceIndex")
+						local done = function(result)
+	--DEBUG:print('doMove done result', result)
+							if not result then
+								-- failed move -- deselect
+								self.selectedMoves = nil
+								self.selectedPlace = nil
+								self.selectedPlaceIndex = nil
+							else
+								-- successful move ...
+
+								-- [[ now if we're the server then we want to send to the client the fact that we moved ...
+								if self.server then
+									for _,serverConn in ipairs(self.server.serverConns) do
+	--DEBUG:print('sending serverConn doMove')
+										serverConn:netcall{
+											'doMove',
+											playerIndex,
+											fromPlaceIndex,
+											toPlaceIndex,
+											-- TODO
+											--done = block for all sends to finish
+										}
+									end
+								else
+								--]] do
+								-- if we're not the server then we still have to do the move ourselves...
+									local result = self:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
+	--DEBUG:print('after remote doMove, local doMove result', result)
+								end
+
+								self.selectedMoves = nil
+
+								self.selectedPlace = nil
+								self.selectedPlaceIndex = nil
+							end
+						end
+						-- TODO I'm sure netrefl has this functionality...
+						if self.clientConn then
+	--DEBUG:print('server sending clientConn doMove')
+							self.clientConn:netcall{
+								done = done,
+								'doMove',
+								playerIndex,
+								fromPlaceIndex,
+								toPlaceIndex,
+							}
+						else
+	--DEBUG:print('local doMove')
+							done(self:doMove(
+								playerIndex,
+								fromPlaceIndex,
+								toPlaceIndex
+							))
+						end
+					else
+						-- else deselect it
+						self.selectedMoves = nil
+						self.selectedPlace = nil
+						self.selectedPlaceIndex = nil
+					end
 				else
-					self.selectedMoves = nil
-					self.selectedPlace = nil
-					self.selectedPlaceIndex = nil
+					-- if we don't have a piece selected ... try to select it
+					if self.mouseOverPlace
+					and self.mouseOverPlace.piece
+					and self.mouseOverPlace ~= self.selectedPlace
+					then
+						self.selectedPlace = self.mouseOverPlace
+						self.selectedPlaceIndex = self.mouseOverPlaceIndex
+
+						if self.selectedPlace then
+							local piece = self.selectedPlace.piece
+							if piece then
+								self.selectedMoves = piece:getMoves()
+
+								-- if we dont want to allow manual capturing of the king...
+								-- ... then filter out all moves that won't end the check
+								self.selectedMoves = self.selectedMoves:filter(function(movePath)
+									local forecastBoard = self.shared.board:clone()
+									local forecastSelPiece = forecastBoard.places[self.selectedPlaceIndex].piece
+									if forecastSelPiece then
+										forecastSelPiece:move(movePath)
+									end
+									forecastBoard:refreshMoves()
+									return not forecastBoard.checks[self.shared.turn]
+								end)
+							else
+								self.selectedMoves = nil
+							end
+						end
+					else
+						self.selectedMoves = nil
+						self.selectedPlace = nil
+						self.selectedPlaceIndex = nil
+					end
 				end
 			end
 		end
@@ -619,6 +658,7 @@ function App:updateGUI()
 			ig.luatableCheckbox('knights', self.shared.enablePieces, 'knight')
 			ig.luatableCheckbox('rooks', self.shared.enablePieces, 'rook')
 			ig.luatableCheckbox('queens', self.shared.enablePieces, 'queen')
+			ig.luatableCheckbox('cutomize placement.', self.shared.enablePieces, 'customPlaces')
 			-- TODO custom placement ... but then, also reflect across network
 			ig.igEndMenu()
 		end
@@ -689,6 +729,17 @@ function App:updateGUI()
 			if ig.igButton'Cancel' then
 				-- TODO cancel the connect
 				self.connectWaiting = nil
+			end
+			ig.igEnd()
+		end
+	end
+	if self.isPlacingCustom then
+		if ig.igBegin('Placing...') then
+			ig.igText'Click a tile to change its piece'
+			if ig.igButton'Done' then
+				self.shared.board:initPieces()
+				self.isPlacingCustom = false
+				-- TODO here ... send the board to any connected
 			end
 			ig.igEnd()
 		end

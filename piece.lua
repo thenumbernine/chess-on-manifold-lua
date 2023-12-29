@@ -696,15 +696,16 @@ function King:move(movePath)
 	King.super.move(self, movePath)
 end
 
+Piece.subclasses = table{
+	Piece.Pawn,
+	Piece.Bishop,
+	Piece.Knight,
+	Piece.Rook,
+	Piece.Queen,
+	Piece.King,
+}
 Piece.classForName = {}
-for _,cl in ipairs{
-	Pawn,
-	Bishop,
-	Knight,
-	Rook,
-	Queen,
-	King,
-} do
+for _,cl in ipairs(Piece.subclasses) do
 	Piece.classForName[cl.name] = cl
 end
 
