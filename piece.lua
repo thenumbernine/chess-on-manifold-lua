@@ -221,6 +221,7 @@ local Pawn = Piece:subclass()
 Piece.Pawn = Pawn
 
 Pawn.name = 'pawn'
+Pawn.score = 1
 
 function Pawn:clone(...)
 	local piece = Pawn.super.clone(self, ...)
@@ -369,6 +370,7 @@ local Bishop = Piece:subclass()
 Piece.Bishop = Bishop
 
 Bishop.name = 'bishop'
+Bishop.score = 3
 
 function Bishop:moveStart(args)
 	local place = args.place
@@ -411,6 +413,7 @@ local Knight = Piece:subclass()
 Piece.Knight = Knight
 
 Knight.name = 'knight'
+Knight.score = 3
 
 function Knight:moveStart(args)
 	local place = args.place
@@ -453,6 +456,7 @@ local Rook = Piece:subclass()
 Piece.Rook = Rook
 
 Rook.name = 'rook'
+Rook.score = 5
 
 function Rook:moveStart(args)
 	local place = args.place
@@ -484,6 +488,7 @@ local Queen = Piece:subclass()
 Piece.Queen = Queen
 
 Queen.name = 'queen'
+Queen.score = 10
 
 function Queen:moveStart(args)
 	local place = args.place
@@ -535,6 +540,7 @@ local King = Piece:subclass()
 Piece.King = King
 
 King.name = 'king'
+King.score = 99
 
 function King:moveStart(args)
 	local place = args.place

@@ -168,27 +168,32 @@ function Board:getPlaceForRGB(r,g,b)
 end
 
 -- calculate all moves for all pieces
-function Board:refreshMoves()
+function Board:refreshMoves(noCues)
+	self.scores = self.app.players:mapi(function() return 0 end)
 	self.checks = {}
 	self.attacks = table()
 	for _,place in ipairs(self.places) do
 		local piece = place.piece
 		if piece then
-			piece.movePaths = piece:getMoves(true)
-			for _,move in ipairs(piece.movePaths) do
-				local targetPiece = self.places[move:last().placeIndex].piece
-				if targetPiece then
-					local friendly = targetPiece.player == piece.player
-					self.attacks:insert{
-						piece,
-						targetPiece,
-						friendly,
-					}
+			self.scores[piece.player.index] = self.scores[piece.player.index] + piece.score
+			piece.movePaths = piece:getMoves()
+			if not noCues then
+				piece.cueMovePaths = piece:getMoves(true)
+				for _,move in ipairs(piece.cueMovePaths) do
+					local targetPiece = self.places[move:last().placeIndex].piece
+					if targetPiece then
+						local friendly = targetPiece.player == piece.player
+						self.attacks:insert{
+							piece,
+							targetPiece,
+							friendly,
+						}
 
-					if not friendly
-					and Piece.King:isa(targetPiece)
-					then
-						self.checks[targetPiece.player.index] = true
+						if not friendly
+						and Piece.King:isa(targetPiece)
+						then
+							self.checks[targetPiece.player.index] = true
+						end
 					end
 				end
 			end

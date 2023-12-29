@@ -161,6 +161,10 @@ function App:initGL()
 				customPlaces = netField.netFieldBoolean,
 			},
 		}}),
+		playersAI = {
+			false,
+			true,
+		},
 	}, {__index={
 		__netfields = {
 			-- doMove will handle turns ... so this really isn't shared ...
@@ -326,6 +330,25 @@ function App:update()
 	-- why not just make this another update thread?
 	if self.server then
 		self.server:update()
+	end
+
+	if not self.isPlacingCustom
+	and self.shared.playersAI[self.shared.turn] 
+	then
+		-- then do an AI move
+		local move = assert(self:getBestMove(self.shared.board, self.shared.turn))
+		if not self:doMove(
+			self.shared.turn,
+			move[1].placeIndex,
+			move:last().placeIndex
+		) then
+--DEBUG:	if true then			
+--DEBUG:		print("tried to perform move from "..move[1].placeIndex.." to "..move:last().placeIndex)
+--DEBUG:		self.isPlacingCustom = true
+--DEBUG:	else
+			error("failed")
+--DEBUG:	end
+		end
 	end
 
 	-- determine tile under mouse
@@ -645,8 +668,13 @@ function App:updateGUI()
 			ig.luatableCheckbox('knights', self.shared.enablePieces, 'knight')
 			ig.luatableCheckbox('rooks', self.shared.enablePieces, 'rook')
 			ig.luatableCheckbox('queens', self.shared.enablePieces, 'queen')
+			ig.igSeparator()
 			ig.luatableCheckbox('cutomize placement.', self.shared.enablePieces, 'customPlaces')
 			-- TODO custom placement ... but then, also reflect across network
+			ig.igSeparator()
+			for i=1,#self.players do
+				ig.luatableCheckbox('player #'..i..' as AI', self.shared.playersAI, i)
+			end
 			ig.igEndMenu()
 		end
 		if ig.igBeginMenu'View' then
@@ -815,6 +843,50 @@ function App:startRemote(method)
 --DEBUG:print('App:startRemote created netcom')
 --DEBUG:print('self.clientConn', self.clientConn)
 --DEBUG:print('self.server', self.server)
+end
+
+function App:getBestMove(board, turn, depth)
+	local maxDepth = 1
+	depth = depth or 0
+--DEBUG:print('App:getBestMove', depth)
+	local allMovesAndScores = table()
+	for _,place in ipairs(board.places) do
+		if place.piece 
+		and place.piece.player.index == turn
+		then
+			for _,move in ipairs(place.piece.movePaths) do
+--DEBUG:print('App:getBestMove', depth, 'checking from', move[1].placeIndex, 'to', move:last().placeIndex)
+				local nextBoard = board:clone()
+				local nextPlace = nextBoard.places[place.index]
+				local nextPiece = nextPlace.piece
+				nextPiece:move(move)
+				nextBoard:refreshMoves(true)
+				
+--DEBUG:		local thisScore = nextBoard.scores[turn] - nextBoard.scores[3-turn]
+--DEBUG:print('App:getBestMove', depth, 'for this move we got score', thisScore)
+				local lastMoveBoard = nextBoard
+				if depth < maxDepth then
+					local nextMove
+					nextMove, lastMoveBoard = self:getBestMove(
+						nextBoard,
+						turn % #self.players + 1,
+						depth + 1
+					)
+				end
+				local nextScore = lastMoveBoard.scores[turn] - lastMoveBoard.scores[3-turn]
+--DEBUG:print('App:getBestMove', depth, 'from recursive moves we got score', nextScore)
+				allMovesAndScores:insert{
+					move = move,
+					score = nextScore,
+					board = nextBoard,
+				}
+			end
+		end
+	end
+	allMovesAndScores:sort(function(a,b) return a.score > b.score end)
+	allMovesAndScores = allMovesAndScores:filter(function(a) return a.score == allMovesAndScores[1].score end)
+	local moveAndScore = allMovesAndScores:pickRandom()
+	return moveAndScore.move, moveAndScore.board
 end
 
 return App
