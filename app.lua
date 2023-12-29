@@ -247,6 +247,15 @@ function App:rotateView(i, j)
 	self.view.pos = self.view.angle:zAxis() * dist + self.view.orbit
 end
 
+--[[
+returns:
+	true = move was succesful
+	false = something went wrong
+TODO return some state of the move result:
+	1) game keeps going
+	2) stalemate
+	3) checkmate
+--]]
 function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 --DEBUG:print('App:doMove', playerIndex, fromPlaceIndex, toPlaceIndex)
 
@@ -306,8 +315,7 @@ function App:doMove(playerIndex, fromPlaceIndex, toPlaceIndex)
 	if newBoard.checks[playerIndex] then return false end
 
 	-- TODO do this client-side ...
-	local prevBoard = self.shared.board:clone():refreshMoves()
-	self.history:insert(prevBoard)
+	self.history:insert(self.shared.board:clone():refreshMoves())
 
 	-- move the piece to that square
 --DEBUG:print('App:doMove self.shared.board.lastMovedPlaceIndex before', self.shared.board.lastMovedPlaceIndex)
@@ -342,6 +350,7 @@ function App:update()
 			move[1].placeIndex,
 			move:last().placeIndex
 		) then
+
 --DEBUG:	if true then			
 --DEBUG:		print("tried to perform move from "..move[1].placeIndex.." to "..move:last().placeIndex)
 --DEBUG:		self.isPlacingCustom = true
