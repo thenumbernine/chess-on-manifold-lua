@@ -383,6 +383,14 @@ Board.generators:insert{Cube = function(app)
 	return board
 end}
 
+--[[ whoops, my obj file loader triangulates on load.  not very useful here ...
+-- how about i override the loader and make it spit out board places ...
+Board.generators:insert{ObjFile = function(app, filename)
+	local objloader = require 'mesh.objloader'()
+	local mesh = objloader:load(filename)
+end}
+--]]
+
 Board.generatorForName = {}
 for _,genpair in ipairs(Board.generators) do
 	local name, gen = next(genpair)
