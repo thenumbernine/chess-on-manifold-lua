@@ -400,13 +400,26 @@ function PlaceLoader:buildTris(vs, vts, vns)
 		local vtxs = face:mapi(function(vis)
 			return vec3f(vs[vis.v]:unpack())
 		end)
-		local center = vtxs:sum() / #vtxs
-		local bw = (math.floor(center.x) + math.floor(center.y) + math.floor(center.z)) % 2 == 0
-		Place{
-			board = self.board,
-			color = bw and vec3f(1,1,1) or vec3f(.2, .2, .2),
-			vtxs = vtxs,
-		}
+		local area = 0
+		for j=2,#vtxs-1 do
+			local a = vtxs[1]
+			local b = vtxs[j]
+			local c = vtxs[j+1]
+			local ab = b - a
+			local ac = c - a
+			area = area + .5 * ab:cross(ac):norm()
+		end
+		if area <= 1e-7 then
+			print("disregarding zero-area face...")
+		else
+			local center = vtxs:sum() / #vtxs
+			local bw = (math.floor(center.x) + math.floor(center.y) + math.floor(center.z)) % 2 == 0
+			Place{
+				board = self.board,
+				color = bw and vec3f(1,1,1) or vec3f(.2, .2, .2),
+				vtxs = vtxs,
+			}
+		end
 	end
 end
 Board.generators:insert{ObjFile = function(app, filename)
