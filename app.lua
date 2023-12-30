@@ -161,6 +161,7 @@ function App:initGL()
 				customPlaces = netField.netFieldBoolean,
 			},
 		}}),
+		customBoard = false,
 		playersAI = {
 			false,
 			true,
@@ -678,8 +679,10 @@ function App:updateGUI()
 			ig.luatableCheckbox('rooks', self.shared.enablePieces, 'rook')
 			ig.luatableCheckbox('queens', self.shared.enablePieces, 'queen')
 			ig.igSeparator()
-			ig.luatableCheckbox('cutomize placement.', self.shared.enablePieces, 'customPlaces')
+			ig.luatableCheckbox('custom pieces...', self.shared.enablePieces, 'customPlaces')
 			-- TODO custom placement ... but then, also reflect across network
+			ig.igSeparator()
+			ig.luatableCheckbox('custom board...', self.shared, 'customBoard')
 			ig.igSeparator()
 			for i=1,#self.players do
 				ig.luatableCheckbox('player #'..i..' as AI', self.shared.playersAI, i)
@@ -762,6 +765,7 @@ function App:updateGUI()
 			ig.igText'Click a tile to change its piece'
 			if ig.igButton'Done' then
 				self.shared.board:initPieces()
+				self.shared.board:refreshMoves()
 				self.isPlacingCustom = false
 				-- TODO here ... send the board to any connected
 			end
