@@ -4,7 +4,6 @@ local table = require 'ext.table'
 local vec3f = require 'vec-ffi.vec3f'
 local Place = require 'place'
 local Piece = require 'piece'
-local Player = require 'player'
 
 local Board = class()
 
@@ -242,9 +241,9 @@ Board.generators:insert{Traditional = function(app)
 
 	-- board makes players?  or app makes players?  hmm
 	-- board holds players?
-	assert(#app.players == 0)
+	assert(#app.players == 2)
 	for i=1,2 do
-		local player = Player(app)
+		local player = app.players[i]
 		local y = 7 * (i-1)
 		board:makePiece{class=Piece.Rook, player=player, placeIndex=1 + 0 + 8 * y}
 		board:makePiece{class=Piece.Knight, player=player, placeIndex=1 + 1 + 8 * y}
@@ -291,9 +290,9 @@ Board.generators:insert{Cylinder = function(app)
 
 	-- board makes players?  or app makes players?  hmm
 	-- board holds players?
-	assert(#app.players == 0)
+	assert(#app.players == 2)
 	for i=1,2 do
-		local player = Player(app)
+		local player = app.players[i]
 		local y = 7 * (i-1)
 		board:makePiece{class=Piece.Rook, player=player, placeIndex=1 + 0 + 8 * y}
 		board:makePiece{class=Piece.Knight, player=player, placeIndex=1 + 1 + 8 * y}
@@ -353,7 +352,7 @@ Board.generators:insert{Cube = function(app)
 	board:buildEdges()
 
 	for i=1,2 do
-		local player = Player(app)
+		local player = app.players[i]
 		assert(player.index == i)
 		local places = placesPerSide[0][2*i-3]
 
@@ -383,11 +382,43 @@ Board.generators:insert{Cube = function(app)
 	return board
 end}
 
---[[ whoops, my obj file loader triangulates on load.  not very useful here ...
+-- [[ whoops, my obj file loader triangulates on load.  not very useful here ...
 -- how about i override the loader and make it spit out board places ...
+local OBJLoader = require 'mesh.objloader'
+local PlaceLoader = OBJLoader:subclass() 
+function PlaceLoader:init(...)
+	self.faces = table()
+	PlaceLoader.super.init(self, ...)
+end
+function PlaceLoader:loadFace(vis, mesh, group)
+	self.faces:insert(vis)
+	-- vis is an array of {v=vi, vt=vti, vn=vni}
+	PlaceLoader.super.loadFace(self, vis, mesh, group)
+end
+function PlaceLoader:buildTris(vs, vts, vns)
+	for i,face in ipairs(self.faces) do
+		local vtxs = face:mapi(function(vis)
+			return vec3f(vs[vis.v]:unpack())
+		end)
+		local center = vtxs:sum() / #vtxs
+		local bw = (math.floor(center.x) + math.floor(center.y) + math.floor(center.z)) % 2 == 0
+		Place{
+			board = self.board,
+			color = bw and vec3f(1,1,1) or vec3f(.2, .2, .2),
+			vtxs = vtxs,
+		}
+	end
+end
 Board.generators:insert{ObjFile = function(app, filename)
-	local objloader = require 'mesh.objloader'()
-	local mesh = objloader:load(filename)
+	local board = Board(app)
+	
+	filename = filename or 'board.obj'
+	local loader = PlaceLoader()
+	loader.board = board		--assign before calling :load()
+	loader:load(filename)
+	board:buildEdges()
+	-- TODO pieces too 
+	return board
 end}
 --]]
 

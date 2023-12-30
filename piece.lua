@@ -128,6 +128,7 @@ function Piece:getMoves(friendlyFire)
 		local edgeIndex,edge = place.edges:find(nil, function(edge)
 			return self.board.places[edge.placeIndex] == prevPlace
 		end)
+		-- if we have a one-way edge ...
 		if not edge then
 			print("came from", prevPlace.center)
 			print("at", place.center)
@@ -135,7 +136,8 @@ function Piece:getMoves(friendlyFire)
 			for _,edge in ipairs(place.edges) do
 				print('', self.board.places[edge.placeIndex].center)
 			end
-			error"couldn't find edge"
+			print"couldn't find edge"
+			return
 		end
 
 		-- now each piece should pick the next neighbor based on the prev neighbor and the neighborhood ...
@@ -257,11 +259,14 @@ function Pawn:moveStart(args)
 		for lr=-1,1 do
 			if lr == 0 then
 				-- move forward if nothing is there ...
-				local nextPlace = self.board.places[place.edges[self.dir].placeIndex]
-				if nextPlace
-				and not nextPlace.piece
-				then -- ... unless we let pawns capture forward 1 tile ...
-					coroutine.yield(self.dir-1, true, lr)
+				local edge = place.edges[(self.dir-1)%nedges+1]
+				if edge then
+					local nextPlace = self.board.places[edge.placeIndex]
+					if nextPlace
+					and not nextPlace.piece
+					then -- ... unless we let pawns capture forward 1 tile ...
+						coroutine.yield(self.dir-1, true, lr)
+					end
 				end
 			else
 				-- start our diagonal step for captures

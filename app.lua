@@ -15,6 +15,7 @@ local netField = require 'netrefl.netfield'
 local Place = require 'place'
 local Piece = require 'piece'
 local Board = require 'board'
+local Player = require 'player'
 
 
 local App = require 'imguiapp.withorbit'()
@@ -215,6 +216,10 @@ function App:newGame(genname)
 	boardGenerator = boardGenerator or select(2, next(Board.generators[1]))
 	-- per-game
 	self.players = table()
+	-- TODO where to set # of players?
+	for i=1,2 do
+		Player(self)
+	end
 	self.shared.board = boardGenerator(self)
 	self.history = table()
 	self.historyIndex = nil
@@ -813,7 +818,7 @@ function App:updateGUI()
 								place.piece = nil
 								place.piece = cl{
 									board = self.shared.board,
-									player = self.players[team],
+									player = assert(self.players[team]),
 									placeIndex = placeIndex,
 								}
 							end
