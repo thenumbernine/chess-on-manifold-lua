@@ -682,7 +682,7 @@ function App:updateGUI()
 			ig.luatableCheckbox('custom pieces...', self.shared, 'customPieceLayout')
 			-- TODO custom placement ... but then, also reflect across network
 			ig.igSeparator()
-			ig.luatableCheckbox('custom board...', self.shared, 'customBoard')
+--			ig.luatableCheckbox('custom board...', self.shared, 'customBoard')
 			ig.igSeparator()
 			for i=1,#self.players do
 				ig.luatableCheckbox('player #'..i..' as AI', self.shared.playersAI, i)
