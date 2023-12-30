@@ -140,6 +140,7 @@ function App:initGL()
 	-- use a 'clientToServerCall' to call the server when a player moves
 	-- TODO make this a server-to-client-only reflected object?
 	self.shared = setmetatable({
+		playing = false,	-- wait til they click the 'play!' button
 		turn = 1,
 		enablePieces = setmetatable({
 			king = true,	-- always
@@ -148,7 +149,6 @@ function App:initGL()
 			knight = true,
 			rook = true,
 			pawn = true,
-			customPlaces = false,
 		}, {__index={
 			-- TODO move __netfields to the metatable?  technically it can go into the __index metatable as things stand...
 			__netfields = {
@@ -158,9 +158,9 @@ function App:initGL()
 				knight = netField.netFieldBoolean,
 				rook = netField.netFieldBoolean,
 				pawn = netField.netFieldBoolean,
-				customPlaces = netField.netFieldBoolean,
 			},
 		}}),
+		customPieceLayout = false,
 		customBoard = false,
 		playersAI = {
 			false,
@@ -171,6 +171,7 @@ function App:initGL()
 			-- doMove will handle turns ... so this really isn't shared ...
 			--turn = netField.netFieldNumber,
 			enablePieces = netField.NetFieldObject,
+			customPieceLayout = netField.netFieldBoolean,
 			--board = netField.NetFieldObject,
 		},
 	}})
@@ -218,14 +219,8 @@ function App:newGame(genname)
 	self.history = table()
 	self.historyIndex = nil
 	self.shared.board:refreshMoves()
-
+	self.shared.playing = false
 	self.shared.turn = 1
-
-	if self.shared.enablePieces.customPlaces then
-		-- popup a window that says 'ready'...
-		-- don't register moves until it's clicked.
-		self.isPlacingCustom = true
-	end
 end
 
 function App:resetView()
@@ -341,7 +336,7 @@ function App:update()
 		self.server:update()
 	end
 
-	if not self.isPlacingCustom
+	if self.shared.playing
 	and self.shared.playersAI[self.shared.turn] 
 	then
 		-- then do an AI move
@@ -351,13 +346,8 @@ function App:update()
 			move[1].placeIndex,
 			move:last().placeIndex
 		) then
-
---DEBUG:	if true then			
---DEBUG:		print("tried to perform move from "..move[1].placeIndex.." to "..move:last().placeIndex)
---DEBUG:		self.isPlacingCustom = true
---DEBUG:	else
-			error("failed")
---DEBUG:	end
+			print"something went wrong.  is the game done yet?"
+			--error("failed")
 		end
 	end
 
@@ -372,15 +362,23 @@ function App:update()
 
 		self.mouseOverPlace, self.mouseOverPlaceIndex = self.shared.board:getPlaceForRGB(result:unpack())
 		-- if we are clicking ...
-		if self.mouse.leftClick
-		and canHandleMouse 
+		if canHandleMouse 
+		and self.mouse.leftClick
 		then
-			if self.isPlacingCustom then
-				if self.mouseOverPlace then
-					if self.isPlacingCustomGenerator then
-						self.isPlacingCustomGenerator(self.mouseOverPlace)
-					else
-						self.mouseOverPlace.piece = nil
+			-- if we're not playing the game yet ..
+			if not self.shared.playing then
+				if self.shared.customBoard then
+					-- handle any changing-board requests ...
+					-- technically I don't need the pick-scene render for this ...
+					-- hmm the more I think about this, the more I just want to import OBJ files ...
+				elseif self.shared.customPieceLayout then
+					-- handle any placing-pieces requests ...
+					if self.mouseOverPlace then
+						if self.isPlacingCustomGenerator then
+							self.isPlacingCustomGenerator(self.mouseOverPlace)
+						else
+							self.mouseOverPlace.piece = nil
+						end
 					end
 				end
 			else
@@ -678,8 +676,10 @@ function App:updateGUI()
 			ig.luatableCheckbox('knights', self.shared.enablePieces, 'knight')
 			ig.luatableCheckbox('rooks', self.shared.enablePieces, 'rook')
 			ig.luatableCheckbox('queens', self.shared.enablePieces, 'queen')
+			
+			-- TODO make this an "edit pieces" button, and grey it out mid-game ... only enable it if the game is reset and untouched.
 			ig.igSeparator()
-			ig.luatableCheckbox('custom pieces...', self.shared.enablePieces, 'customPlaces')
+			ig.luatableCheckbox('custom pieces...', self.shared, 'customPieceLayout')
 			-- TODO custom placement ... but then, also reflect across network
 			ig.igSeparator()
 			ig.luatableCheckbox('custom board...', self.shared, 'customBoard')
@@ -751,6 +751,17 @@ function App:updateGUI()
 		ig.igEnd()
 		ig.igPopID()
 	end
+	if not self.shared.playing then
+		if ig.igBegin('Ready...') then
+			if ig.igButton('Play!') then
+				self.shared.customPieceLayout = false
+				self.shared.board:initPieces()
+				self.shared.board:refreshMoves()
+				self.shared.playing = true
+			end
+			ig.igEnd()
+		end
+	end
 	if self.connectWaiting then
 		if ig.igBegin('Waiting...') then
 			if ig.igButton'Cancel' then
@@ -760,56 +771,64 @@ function App:updateGUI()
 			ig.igEnd()
 		end
 	end
-	if self.isPlacingCustom then
-		if ig.igBegin('Placing...') then
-			ig.igText'Click a tile to change its piece'
-			if ig.igButton'Done' then
-				self.shared.board:initPieces()
-				self.shared.board:refreshMoves()
-				self.isPlacingCustom = false
-				-- TODO here ... send the board to any connected
-			end
-			if ig.igButton'clear' then
-				self.isPlacingCustomGeneratorIndex = 0
-				self.isPlacingCustomGenerator = function(place)
-					place.piece = nil
+	
+	-- only do custom-board or custom-pieces one at a time
+	if not self.shared.playing then
+		if self.shared.customBoard then
+			if ig.igBegin('Editing Board...') then
+				if ig.igButton'Done' then
+					self.shared.customBoard = false
 				end
+				ig.igEnd()
 			end
-			for team,color in ipairs(self.colors) do
-				for i,cl in ipairs(Piece.subclasses) do
-					local genIndex = (team-1) * #Piece.subclasses + i
-					if i > 1 then ig.igSameLine() end
-					local sel = self.isPlacingCustomGeneratorIndex == genIndex
-					if sel then
-						ig.igPushStyleColor_Vec4(ig.ImGuiCol_Button, ig.ImVec4(1,0,0,.5))
+		elseif self.shared.customPieceLayout then
+			if ig.igBegin('Placing Pieces...') then
+				ig.igText'Click a tile to change its piece'
+				if ig.igButton'clear' then
+					self.isPlacingCustomGeneratorIndex = 0
+					self.isPlacingCustomGenerator = function(place)
+						place.piece = nil
 					end
-					if ig.igImageButton(
-						'new'..cl.name..color,
-						ffi.cast('void*', cl.texs[team].id),
-						ig.ImVec2(32, 32),
-						ig.ImVec2(0, 0),
-						ig.ImVec2(1, 1),
-						ig.ImVec4(0, 0, 0, 0),
-						self.isPlacingCustomGenerator == genIndex and ig.ImVec4(1, 0, 0, 1) or ig.ImVec4(1, 1, 1, 1)
-					) then
-						self.isPlacingCustomGeneratorIndex = genIndex 
-						self.isPlacingCustomGenerator = function(place)
-							local placeIndex = place.index
-							place.piece = nil
-							place.piece = cl{
-								board = self.shared.board,
-								player = self.players[team],
-								placeIndex = placeIndex,
-							}
+				end
+				for team,color in ipairs(self.colors) do
+					for i,cl in ipairs(Piece.subclasses) do
+						local genIndex = (team-1) * #Piece.subclasses + i
+						if i > 1 then ig.igSameLine() end
+						local sel = self.isPlacingCustomGeneratorIndex == genIndex
+						if sel then
+							ig.igPushStyleColor_Vec4(ig.ImGuiCol_Button, ig.ImVec4(1,0,0,.5))
+						end
+						if ig.igImageButton(
+							'new'..cl.name..color,
+							ffi.cast('void*', cl.texs[team].id),
+							ig.ImVec2(32, 32),
+							ig.ImVec2(0, 0),
+							ig.ImVec2(1, 1),
+							ig.ImVec4(0, 0, 0, 0),
+							self.isPlacingCustomGenerator == genIndex and ig.ImVec4(1, 0, 0, 1) or ig.ImVec4(1, 1, 1, 1)
+						) then
+							self.isPlacingCustomGeneratorIndex = genIndex 
+							self.isPlacingCustomGenerator = function(place)
+								local placeIndex = place.index
+								place.piece = nil
+								place.piece = cl{
+									board = self.shared.board,
+									player = self.players[team],
+									placeIndex = placeIndex,
+								}
+							end
+						end
+						if sel then
+							ig.igPopStyleColor(1)
 						end
 					end
-					if sel then
-						ig.igPopStyleColor(1)
-					end
 				end
-			end
+				if ig.igButton'Done' then
+					self.shared.customPieceLayout = false
+				end
 
-			ig.igEnd()
+				ig.igEnd()
+			end
 		end
 	end
 end
