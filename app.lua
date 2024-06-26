@@ -37,9 +37,10 @@ function App:initGL()
 
 	-- textures:
 	local piecesImg = Image'pieces.png'
-	local texsize = piecesImg.height/2
-	assert(piecesImg.width == texsize*6)
-	assert(piecesImg.height == texsize*2)
+	local pieceTexWidth = math.floor(piecesImg.width/6)
+	local pieceTexHeight = math.floor(piecesImg.height/2)
+	--assert(piecesImg.width == texsize*6)
+	--assert(piecesImg.height == texsize*2)
 	assert(piecesImg.channels == 4)
 	for y=0,piecesImg.height-1 do
 		for x=0,piecesImg.width-1 do
@@ -63,10 +64,10 @@ function App:initGL()
 			'pawn',
 		} do
 			local image = piecesImg:copy{
-				x = texsize*(x-1),
-				y = texsize*(y-1),
-				width = texsize,
-				height = texsize,
+				x = pieceTexWidth*(x-1),
+				y = pieceTexHeight*(y-1),
+				width = pieceTexWidth,
+				height = pieceTexHeight,
 			}
 			local tex = GLTex2D{
 				image = image,
