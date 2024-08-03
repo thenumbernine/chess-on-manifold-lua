@@ -620,17 +620,17 @@ function App:event(event, ...)
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
 	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
 	if canHandleKeyboard then
-		if event.type == sdl.SDL_KEYDOWN then
-			if event.key.keysym.sym == sdl.SDLK_LEFT then
+		if event[0].type == sdl.SDL_KEYDOWN then
+			if event[0].key.keysym.sym == sdl.SDLK_LEFT then
 				self.historyIndex = self.historyIndex or #self.history + 1
 				self.historyIndex = math.clamp(self.historyIndex - 1, 1, #self.history + 1)
 				if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
-	print('historyIndex', self.historyIndex)
-			elseif event.key.keysym.sym == sdl.SDLK_RIGHT then
+print('historyIndex', self.historyIndex)
+			elseif event[0].key.keysym.sym == sdl.SDLK_RIGHT then
 				self.historyIndex = self.historyIndex or #self.history + 1
 				self.historyIndex = math.clamp(self.historyIndex + 1, 1, #self.history + 1)
 				if self.historyIndex == #self.history + 1 then self.historyIndex = nil end
-	print('historyIndex', self.historyIndex)
+print('historyIndex', self.historyIndex)
 			end
 		end
 	end
