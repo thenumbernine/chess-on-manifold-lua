@@ -16,7 +16,7 @@ Board.__netfields = {
 				error'here'
 				return Place{
 					board = board,
-					color = vec4f(),	-- ... some default value, to-be-updated
+					color = vec3f(),	-- ... some default value, to-be-updated
 					vtxs = table(),	-- ... some default value, to-be-updated
 				}
 			end,
@@ -151,8 +151,7 @@ function Board:drawPicking()
 		local r = bit.band(0xff, i)
 		local g = bit.band(0xff, bit.rshift(i, 8))
 		local b = bit.band(0xff, bit.rshift(i, 16))
-		gl.glColor3ub(r,g,b)
-		place:drawPicking()
+		place:drawPicking(r,g,b)
 		self.placeForIndex[i] = place
 	end
 end

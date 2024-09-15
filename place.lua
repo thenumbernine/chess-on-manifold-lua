@@ -1,5 +1,7 @@
 local class = require 'ext.class'
 local table = require 'ext.table'
+local asserttype = require 'ext.assert'.type
+local asserteq = require 'ext.assert'.eq
 local vec3f = require 'vec-ffi.vec3f'
 local gl = require 'gl'
 local Piece = require 'piece'
@@ -120,29 +122,32 @@ function Place:clone(newBoard)
 	return place
 end
 
-function Place:drawLine()
-	gl.glBegin(gl.GL_LINE_LOOP)
-	for _,v in ipairs(self.vtxs) do
-		gl.glVertex3f(v:unpack())
-	end
-	gl.glEnd()
+function Place:drawLine(r,g,b,a)
+	self.board.app:drawSolidLineLoop(self.vtxs, r,g,b,a)
 end
 
-function Place:drawPolygon()
-	gl.glBegin(gl.GL_POLYGON)
-	for _,v in ipairs(self.vtxs) do
-		gl.glVertex3f(v:unpack())
+function Place:drawPolygon(r,g,b,a)
+	local app = self.board.app
+	local v0 = self.vtxs[1]
+	for j=3,#self.vtxs do
+		local vi = self.vtxs[j-1]
+		local vj = self.vtxs[j]
+		app:drawSolidTri(
+			v0.x, v0.y, v0.z, 
+			vi.x, vi.y, vi.z, 
+			vj.x, vj.y, vj.z, 
+			asserttype(r,'number'),asserttype(g,'number'),asserttype(b,'number'),asserttype(a,'number')
+		)
 	end
-	gl.glEnd()
 end
 
 function Place:draw()
-	gl.glColor3f(0,0,0)
-	self:drawLine()
+	self:drawLine(0,0,0,1)
 
 	if not self.board.app.transparentBoard then
-		gl.glColor3f(self.color:unpack())
-		self:drawPolygon()
+		asserteq(self.color.dim, 3)
+		local r,g,b = self.color:unpack()
+		self:drawPolygon(r,g,b,1)
 	end
 	if self.piece then
 if not self.piece.draw then
@@ -154,18 +159,15 @@ end
 	end
 end
 
-function Place:drawPicking()
-	-- assume color is already set
-	-- and don't bother draw the outline
-	self:drawPolygon()
+function Place:drawPicking(r,g,b)
+	self:drawPolygon(r,g,b,1)
 end
 
 function Place:drawHighlight(r,g,b,a)
 	a = a or .8
 	gl.glDepthFunc(gl.GL_LEQUAL)
-	gl.glColor4f(r,g,b,a)
-	self:drawLine()
-	self:drawPolygon()
+	self:drawLine(r,g,b,a)
+	self:drawPolygon(r,g,b,a)
 	gl.glDepthFunc(gl.GL_LESS)
 end
 

@@ -48,8 +48,10 @@ end
 local uvs = table{
 	vec3f(0,0,0),
 	vec3f(0,1,0),
-	vec3f(1,1,0),
 	vec3f(1,0,0),
+	vec3f(1,0,0),
+	vec3f(0,1,0),
+	vec3f(1,1,0),
 }
 function Piece:draw()
 	local player = self.player
@@ -63,23 +65,14 @@ function Piece:draw()
 	local drawY = n:cross(drawX):normalize()
 	if drawY:dot(viewY) < 0 then drawY = -drawY end	-- draw facing up if possible
 	local tex = app.pieceTexs[player.index][self.name]
-	tex
-		:enable()
-		:bind()
-	gl.glColor3f(1,1,1)
-	gl.glBegin(gl.GL_QUADS)
-	for _,uv in ipairs(uvs) do
-		gl.glTexCoord3f(uv:unpack())
-		gl.glVertex3f((place.center
-			+ (uv.x - .5) * drawX
-			- (uv.y - .5) * drawY
-			+ .01 * n
-		):unpack())
-	end
-	gl.glEnd()
-	tex
-		:unbind()
-		:disable()
+	local sceneObj = app.drawPieceSceneObj
+	sceneObj.uniforms.mvProjMat = app.view.mvProjMat.ptr
+	sceneObj.texs[1] = tex
+	sceneObj.uniforms.center = {place.center:unpack()}
+	sceneObj.uniforms.drawX = {drawX:unpack()}
+	sceneObj.uniforms.drawY = {drawY:unpack()}
+	sceneObj.uniforms.normal = {n:unpack()}
+	sceneObj:draw()
 end
 
 -- returns a table-of-places of where the piece on this place can move

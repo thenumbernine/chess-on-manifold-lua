@@ -2,17 +2,19 @@ local ffi = require 'ffi'
 local gl = require 'gl'
 local table = require 'ext.table'
 local class = require 'ext.class'
+local asserteq = require 'ext.assert'.eq
+local asserttype = require 'ext.assert'.type
 local math = require 'ext.math'
 local vec4ub = require 'vec-ffi.vec4ub'
 local Image = require 'image'
 local GLTex2D = require 'gl.tex2d'
+local GLSceneObject = require 'gl.sceneobject'
 local ig = require 'imgui'
 local sdl = require 'ffi.req' 'sdl'
 local ThreadManager = require 'threadmanager'
 local NetCom = require 'netrefl.netcom'
 local netField = require 'netrefl.netfield'
 
-local Place = require 'place'
 local Piece = require 'piece'
 local Board = require 'board'
 local Player = require 'player'
@@ -84,11 +86,85 @@ function App:initGL()
 		end
 	end
 
+	self.solidTriSceneObj = GLSceneObject{
+		program = {
+			version = 'latest',
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec3 vertex;
+uniform mat4 mvProjMat;
+void main() {
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+			fragmentCode = [[
+uniform vec4 color;
+layout(location=0) out vec4 fragColor;
+void main() {
+	fragColor = color;
+}
+]],
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		geometry = {
+			mode = gl.GL_TRIANGLES,
+		},
+	}
+
+	self.drawPieceSceneObj = GLSceneObject{
+		program = {
+			version = 'latest',
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform vec3 center;
+uniform vec3 drawX, drawY, normal;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	vec3 rvtx = center
+		+ (vertex.x - .5) * drawX
+		- (vertex.y - .5) * drawY
+		+ .01 * normal;
+	gl_Position = mvProjMat * vec4(rvtx, 1.);
+}
+]],
+			fragmentCode = [[
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+uniform sampler2D tex;
+void main() {
+	fragColor = texture(tex, tcv);
+	if (fragColor.a <= .1) discard;
+}
+]],
+			uniforms = {
+				tex = 0,
+			},
+		},
+		vertexes = {
+			data = {
+				0,0,
+				0,1,
+				1,0,
+				1,0,
+				0,1,
+				1,1,
+			},
+			dim = 2,
+		},
+		geometry = {
+			mode = gl.GL_TRIANGLES,
+			count = 6,
+		},
+	}
+
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_BLEND)
-
-	gl.glAlphaFunc(gl.GL_GREATER, .1)
-	gl.glEnable(gl.GL_ALPHA_TEST)
 
 	gl.glEnable(gl.GL_DEPTH_TEST)
 
@@ -559,12 +635,12 @@ function App:update()
 	if self.showHints
 	and #drawBoard.attacks > 0 
 	then
-		gl.glBegin(gl.GL_TRIANGLES)
 		for _,attack in ipairs(drawBoard.attacks) do
+			local cr,cg,cb,ca
 			if attack[3] then
-				gl.glColor4f(0, 1, 0, .7)
+				cr,cg,cb,ca = 0, 1, 0, .7
 			else
-				gl.glColor4f(1, 0, 0, .7)
+				cr,cg,cb,ca = 1, 0, 0, .7
 			end
 			local ax = .05
 			local ay = .45
@@ -577,23 +653,40 @@ function App:update()
 			local pb = drawBoard.places[attack[2].placeIndex]
 			local dir = (pb.center - pa.center):normalize()
 			local right = dir:cross(pa.normal):normalize()
+				
+			local x1,y1,z1 = (pa.center - ax * right + ay * dir + .05 * pa.normal):unpack()
+			local x2,y2,z2 = (pa.center + ax * right + ay * dir + .05 * pa.normal):unpack()
+			local x3,y3,z3 = (pb.center + bx * right - by * dir + .05 * pa.normal):unpack()
+			self:drawSolidTri(
+				x1,y1,z1,
+				x2,y2,z2,
+				x3,y3,z3,
+				cr,cg,cb,ca
+			)
 
-			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center + ax * right + ay * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center + bx * right - by * dir + .05 * pa.normal):unpack())
+			local x1,y1,z1 = (pb.center + bx * right - by * dir + .05 * pa.normal):unpack()
+			local x2,y2,z2 = (pb.center - bx * right - by * dir + .05 * pa.normal):unpack()
+			local x3,y3,z3 = (pa.center - ax * right + ay * dir + .05 * pa.normal):unpack()
+			self:drawSolidTri(
+				x1,y1,z1,
+				x2,y2,z2,
+				x3,y3,z3,
+				cr,cg,cb,ca
+			)
 
-			gl.glVertex3f((pb.center + bx * right - by * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - bx * right - by * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pa.center - ax * right + ay * dir + .05 * pa.normal):unpack())
-
-			gl.glVertex3f((pb.center + arrowWidth * right - by * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - arrowWidth * right - by * dir + .05 * pa.normal):unpack())
-			gl.glVertex3f((pb.center - (by - arrowWidth) * dir + .05 * pa.normal):unpack())
+			local x1,y1,z1 = (pb.center + arrowWidth * right - by * dir + .05 * pa.normal):unpack()
+			local x2,y2,z2 = (pb.center - arrowWidth * right - by * dir + .05 * pa.normal):unpack()
+			local x3,y3,z3 = (pb.center - (by - arrowWidth) * dir + .05 * pa.normal):unpack()
+			self:drawSolidTri(
+				x1,y1,z1,
+				x2,y2,z2,
+				x3,y3,z3,
+				cr,cg,cb,ca
+			)
 
 			--gl.glVertex3f((pa.center - .3 * right + .05 * pa.normal):unpack())
 			--gl.glVertex3f((pb.center + .05 * pb.normal):unpack())
 		end
-		gl.glEnd()
 	end
 
 	if self.selectedPlace then
@@ -611,6 +704,41 @@ function App:update()
 
 	-- this does the gui drawing *and* does the gl matrix setup
 	App.super.update(self)
+end
+
+function App:drawSolidTri(
+	x1,y1,z1,
+	x2,y2,z2,
+	x3,y3,z3,
+	r,g,b,a
+)
+	local sceneObj = self.solidTriSceneObj
+	sceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
+	sceneObj.uniforms.color = {asserttype(r,'number'),asserttype(g,'number'),asserttype(b,'number'),asserttype(a,'number')}
+	local vertexCPU = sceneObj.attrs.vertex.buffer.vec
+	sceneObj:beginUpdate()
+	vertexCPU:emplace_back():set(asserttype(x1,'number'),asserttype(y1,'number'),asserttype(z1,'number'))
+	vertexCPU:emplace_back():set(asserttype(x2,'number'),asserttype(y2,'number'),asserttype(z2,'number'))
+	vertexCPU:emplace_back():set(asserttype(x3,'number'),asserttype(y3,'number'),asserttype(z3,'number'))
+	sceneObj:endUpdate()
+end
+
+function App:drawSolidLineLoop(
+	vtxs,
+	r,g,b,a
+)
+	local sceneObj = self.solidTriSceneObj
+	asserteq(sceneObj.geometry.mode, gl.GL_TRIANGLES)
+	sceneObj.geometry.mode = gl.GL_LINE_LOOP
+	sceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
+	sceneObj.uniforms.color = {asserttype(r,'number'),asserttype(g,'number'),asserttype(b,'number'),asserttype(a,'number')}
+	local vertexCPU = sceneObj.attrs.vertex.buffer.vec
+	sceneObj:beginUpdate()
+	for _,v in ipairs(vtxs) do
+		vertexCPU:emplace_back():set(v:unpack())
+	end
+	sceneObj:endUpdate()
+	sceneObj.geometry.mode = gl.GL_TRIANGLES
 end
 
 function App:event(event, ...)

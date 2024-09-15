@@ -33,3 +33,6 @@ From there, piece movements have been redefined in terms of local moves.
 - imguiapp
 - `lfs_ffi`
 - luasocket (compiled against luajit)
+
+# Credits:
+Chess piece texture: https://clipart-library.com/clip-art/chess-pieces-silhouette-14.htm
