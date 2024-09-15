@@ -1,7 +1,5 @@
 local class = require 'ext.class'
 local table = require 'ext.table'
-local asserttype = require 'ext.assert'.type
-local asserteq = require 'ext.assert'.eq
 local vec3f = require 'vec-ffi.vec3f'
 local gl = require 'gl'
 local Piece = require 'piece'
@@ -136,7 +134,7 @@ function Place:drawPolygon(r,g,b,a)
 			v0.x, v0.y, v0.z, 
 			vi.x, vi.y, vi.z, 
 			vj.x, vj.y, vj.z, 
-			asserttype(r,'number'),asserttype(g,'number'),asserttype(b,'number'),asserttype(a,'number')
+			r,g,b,a
 		)
 	end
 end
@@ -145,7 +143,6 @@ function Place:draw()
 	self:drawLine(0,0,0,1)
 
 	if not self.board.app.transparentBoard then
-		asserteq(self.color.dim, 3)
 		local r,g,b = self.color:unpack()
 		self:drawPolygon(r,g,b,1)
 	end

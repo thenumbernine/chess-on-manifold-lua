@@ -3,7 +3,6 @@ local gl = require 'gl'
 local table = require 'ext.table'
 local class = require 'ext.class'
 local asserteq = require 'ext.assert'.eq
-local asserttype = require 'ext.assert'.type
 local math = require 'ext.math'
 local vec4ub = require 'vec-ffi.vec4ub'
 local Image = require 'image'
@@ -441,7 +440,6 @@ function App:update()
 	j = self.height - j - 1
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
-
 		self.mouseOverPlace, self.mouseOverPlaceIndex = self.shared.board:getPlaceForRGB(result:unpack())
 		-- if we are clicking ...
 		if canHandleMouse 
@@ -714,12 +712,12 @@ function App:drawSolidTri(
 )
 	local sceneObj = self.solidTriSceneObj
 	sceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
-	sceneObj.uniforms.color = {asserttype(r,'number'),asserttype(g,'number'),asserttype(b,'number'),asserttype(a,'number')}
+	sceneObj.uniforms.color = {r,g,b,a}
 	local vertexCPU = sceneObj.attrs.vertex.buffer.vec
 	sceneObj:beginUpdate()
-	vertexCPU:emplace_back():set(asserttype(x1,'number'),asserttype(y1,'number'),asserttype(z1,'number'))
-	vertexCPU:emplace_back():set(asserttype(x2,'number'),asserttype(y2,'number'),asserttype(z2,'number'))
-	vertexCPU:emplace_back():set(asserttype(x3,'number'),asserttype(y3,'number'),asserttype(z3,'number'))
+	vertexCPU:emplace_back():set(x1,y1,z1)
+	vertexCPU:emplace_back():set(x2,y2,z2)
+	vertexCPU:emplace_back():set(x3,y3,z3)
 	sceneObj:endUpdate()
 end
 
@@ -731,7 +729,7 @@ function App:drawSolidLineLoop(
 	asserteq(sceneObj.geometry.mode, gl.GL_TRIANGLES)
 	sceneObj.geometry.mode = gl.GL_LINE_LOOP
 	sceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
-	sceneObj.uniforms.color = {asserttype(r,'number'),asserttype(g,'number'),asserttype(b,'number'),asserttype(a,'number')}
+	sceneObj.uniforms.color = {r,g,b,a}
 	local vertexCPU = sceneObj.attrs.vertex.buffer.vec
 	sceneObj:beginUpdate()
 	for _,v in ipairs(vtxs) do

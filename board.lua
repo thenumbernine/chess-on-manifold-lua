@@ -151,7 +151,7 @@ function Board:drawPicking()
 		local r = bit.band(0xff, i)
 		local g = bit.band(0xff, bit.rshift(i, 8))
 		local b = bit.band(0xff, bit.rshift(i, 16))
-		place:drawPicking(r,g,b)
+		place:drawPicking(r/255,g/255,b/255)
 		self.placeForIndex[i] = place
 	end
 end
