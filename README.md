@@ -1,5 +1,7 @@
 # Chess on a manifold
 
+![](pic.png)
+
 Chessboard neighborhoods are determined by matching vertices.
 So in theory you can build a board with any kind of 3D model.
 
