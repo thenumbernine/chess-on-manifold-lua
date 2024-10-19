@@ -2,7 +2,7 @@ local ffi = require 'ffi'
 local gl = require 'gl'
 local table = require 'ext.table'
 local class = require 'ext.class'
-local asserteq = require 'ext.assert'.eq
+local assert = require 'ext.assert'
 local math = require 'ext.math'
 local vec4ub = require 'vec-ffi.vec4ub'
 local Image = require 'image'
@@ -726,7 +726,7 @@ function App:drawSolidLineLoop(
 	r,g,b,a
 )
 	local sceneObj = self.solidTriSceneObj
-	asserteq(sceneObj.geometry.mode, gl.GL_TRIANGLES)
+	assert.eq(sceneObj.geometry.mode, gl.GL_TRIANGLES)
 	sceneObj.geometry.mode = gl.GL_LINE_LOOP
 	sceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
 	sceneObj.uniforms.color = {r,g,b,a}
