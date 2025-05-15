@@ -32,7 +32,6 @@ From there, piece movements have been redefined in terms of local moves.
 - gl
 - glapp
 - imgui
-- imguiapp
 - `lfs_ffi`
 - luasocket (compiled against luajit)
 
