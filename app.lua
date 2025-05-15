@@ -19,7 +19,7 @@ local Board = require 'board'
 local Player = require 'player'
 
 
-local App = require 'imguiapp.withorbit'()
+local App = require 'imgui.appwithorbit'()
 
 App.title = 'Chess on a Manifold'
 App.viewDist = 5

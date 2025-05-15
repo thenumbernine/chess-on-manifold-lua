@@ -27,58 +27,39 @@ files = {
 		'gl',
 		'glapp',
 		'imgui',
-		'imguiapp',
 		'lfs_ffi',
 	},
 }
 
--- luarocks ...
--- hmm how to organize this all better ...
--- hmm what destination?  wll, better be root based on lua-dist's package.path/cpath setup ...
--- hmmmmm now i'm thinking maybe distinfo files should contain path info as well ...
-if ffi.os == 'Linux' then
-	files['/usr/local/share/luajit-2.1.0-beta3/'] = {
-		'socket.lua',
-		'ltn12.lua',
-		'mime.lua',
-		'socket',
-	}
-	files['/usr/local/lib/lua/luajit-2.1.0-beta3/'] = {
-		'socket',
-		'mime',
-	}
-elseif ffi.os == 'Windows' then
-	files['${USERPROFILE}\\luarocks\\share'] = {
-		'socket.lua',
-		'ltn12.lua',
-		'mime.lua',
-		'socket',
-	}
-	files['${USERPROFILE}\\luarocks\\lib'] = {
-		'socket',
-		'mime',
-	}
-end
-
-
+-- lua socket
+files['../dist/release'] = {
+	'socket.lua',
+	'ltn12.lua',
+	'mime.lua',
+	'socket',
+}
+files['../dist/release/bin/'..ffi.os..'/'..ffi.arch] = {
+	'socket',
+	'mime',
+}
 
 -- binary libs needed for luajit
 luajitLibs = {
 	win = {
-		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
 		'SDL2',
+		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
 		--'GLESv2' ?
 		'cimgui_sdl',
 	},
 	linux = {
-		'png',			-- /usr/lib/x86_64-linux-gnu/libpng16.so.16.39.0
 		'SDL2',			-- /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.2600.3
+		'png',			-- /usr/lib/x86_64-linux-gnu/libpng16.so.16.39.0
 		'GLESv2',		-- /usr/lib/x86_64-linux-gnu/libGLESv2.so.2.1.0
 		'cimgui_sdl',	-- /usr/local/lib/libcimgui_sdl-1.87dock.so
 	},
 	osx = {
-		'sdl',
-		'libpng',
-		'libimgui',
+		'SDL2',
+		'png',
+		'cimgui_sdl',
 	},
 }
