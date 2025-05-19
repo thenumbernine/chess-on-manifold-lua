@@ -1,34 +1,27 @@
-name = 'chess-on-manifold'
-luaDistVer = 'luajit'	-- luajit-openresty-2.1.0
+name = "chess-on-manifold"
 luaArgs = {'run.lua'}
-
 files = {
-	-- cwd files/dirs go here
-	['.'] = {
-		'README.md',
-		'pieces.png',
-		'app.lua',
-		'board.lua',
-		'piece.lua',
-		'place.lua',
-		'player.lua',
-		'run.lua',
-	},
-	-- other paths go here
-	['..'] = table{
-		'template',
-		'ext',
-		'ffi',
-		'struct',
-		'vec-ffi',
-		'threadmanager',
-		'netrefl',
-		'image',
-		'gl',
-		'glapp',
-		'imgui',
-		'lfs_ffi',
-	},
+	["README.md"] = "chess-on-manifold/README.md",
+	["app.lua"] = "chess-on-manifold/app.lua",
+	["board.lua"] = "chess-on-manifold/board.lua",
+	["distinfo"] = "chess-on-manifold/distinfo",
+	["pic.png"] = "chess-on-manifold/pic.png",
+	["piece.lua"] = "chess-on-manifold/piece.lua",
+	["pieces.png"] = "chess-on-manifold/pieces.png",
+	["place.lua"] = "chess-on-manifold/place.lua",
+	["player.lua"] = "chess-on-manifold/player.lua",
+	["run.lua"] = "chess-on-manifold/run.lua",
+}
+deps = {
+	"ext",
+	"gl",
+	"image",
+	"imgui",
+	"mesh",
+	"netrefl",
+	"sdl",
+	"threadmanager",
+	"vec-ffi",
 }
 
 -- lua socket
