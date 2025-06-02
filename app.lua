@@ -932,7 +932,7 @@ function App:updateGUI()
 						end
 						if ig.igImageButton(
 							'new'..cl.name..color,
-							ffi.cast('void*', cl.texs[team].id),
+							ffi.cast('ImTextureID', cl.texs[team].id),
 							ig.ImVec2(32, 32),
 							ig.ImVec2(0, 0),
 							ig.ImVec2(1, 1),
