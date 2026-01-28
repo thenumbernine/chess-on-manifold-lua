@@ -1,16 +1,20 @@
+--------------------------------------------
+-- generated with dist/build-distinfo.rua --
+--------------------------------------------
+
 name = "chess-on-manifold"
 luaArgs = {'run.lua'}
 files = {
-	["README.md"] = "chess-on-manifold/README.md",
-	["app.lua"] = "chess-on-manifold/app.lua",
-	["board.lua"] = "chess-on-manifold/board.lua",
-	["distinfo"] = "chess-on-manifold/distinfo",
-	["pic.png"] = "chess-on-manifold/pic.png",
-	["piece.lua"] = "chess-on-manifold/piece.lua",
-	["pieces.png"] = "chess-on-manifold/pieces.png",
-	["place.lua"] = "chess-on-manifold/place.lua",
-	["player.lua"] = "chess-on-manifold/player.lua",
-	["run.lua"] = "chess-on-manifold/run.lua",
+	"README.md",
+	"app.lua",
+	"board.lua",
+	"distinfo",
+	"pic.png",
+	"piece.lua",
+	"pieces.png",
+	"place.lua",
+	"player.lua",
+	"run.lua",
 }
 deps = {
 	"ext",
@@ -22,39 +26,4 @@ deps = {
 	"sdl",
 	"threadmanager",
 	"vec-ffi",
-}
-
-if ffi.os ~= 'Browser' then
-	-- lua socket
-	files['../dist/release'] = {
-		'socket.lua',
-		'ltn12.lua',
-		'mime.lua',
-		'socket',
-	}
-	files['../dist/release/bin/'..ffi.os..'/'..ffi.arch] = {
-		'socket',
-		'mime',
-	}
-end
-
--- binary libs needed for luajit
-luajitLibs = {
-	win = {
-		'SDL2',
-		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
-		--'GLESv2' ?
-		'cimgui_sdl',
-	},
-	linux = {
-		'SDL2',			-- /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.2600.3
-		'png',			-- /usr/lib/x86_64-linux-gnu/libpng16.so.16.39.0
-		'GLESv2',		-- /usr/lib/x86_64-linux-gnu/libGLESv2.so.2.1.0
-		'cimgui_sdl',	-- /usr/local/lib/libcimgui_sdl-1.87dock.so
-	},
-	osx = {
-		'SDL2',
-		'png',
-		'cimgui_sdl',
-	},
 }
