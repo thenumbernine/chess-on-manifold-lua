@@ -436,7 +436,7 @@ function App:update()
 	gl.glClearColor(0,0,0,1)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	self.shared.board:drawPicking()
-	local i, j = self.mouse.ipos:unpack()
+	local i, j = self.mouse.newPixelPos:unpack()
 	j = self.height - j - 1
 	if i >= 0 and j >= 0 and i < self.width and j < self.height then
 		gl.glReadPixels(i, j, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, result.s)
