@@ -2,6 +2,8 @@
 
 ![](pic.png)
 
+# [Launch](http://localhost:8000/glapp/index.html?file=run.lua&dir=%2Fchess-on-manifold)
+
 Chessboard neighborhoods are determined by matching vertices.
 So in theory you can build a board with any kind of 3D model.
 
